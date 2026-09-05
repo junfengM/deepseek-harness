@@ -606,10 +606,13 @@ describe('client bundle activation', () => {
     expect(singleScript.body.toString('utf8')).toContain(`sourceMappingURL=${mapUrl(row.url)}`)
     const singleMap = await routeRequest(route, mapUrl(row.url))
     expect(singleMap.status).toBe(200)
-    expect(singleMap.headers).toEqual({
+    // The serving path always carries the strong etag + memoized compression
+    // headers; content-addressed resources stay immutable-cached.
+    expect(singleMap.headers).toMatchObject({
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'public, max-age=31536000, immutable',
     })
+    expect(singleMap.headers?.etag).toBeDefined()
     expect(JSON.parse(singleMap.body.toString('utf8'))).toMatchObject({
       version: 3,
       file: 'client.js',

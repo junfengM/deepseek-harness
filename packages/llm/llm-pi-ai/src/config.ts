@@ -290,6 +290,10 @@ const reasoningEfforts = z.dict(
 /** The fields a `models` entry and a `modelOverrides` value share; only the id's home differs. */
 const modelFields = {
   name: z.string(),
+  // No default: absent must stay absent — it means "serving" — while an
+  // explicit `false` holds the row configured but unserved (the Models page's
+  // toggle). Materializing a boolean here would flip every existing entry.
+  enabled: z.boolean(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
   // No explicit default, unlike the route's `defaultInput`: schemastery

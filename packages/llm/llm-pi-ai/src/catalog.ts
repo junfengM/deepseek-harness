@@ -551,6 +551,16 @@ export interface PiAiModelProfile {
   id: string
   /** Display name for selectors; defaults to the catalog name, then the id. */
   name?: string
+  /**
+   * Whether this model serves requests and appears in model pickers. Absent
+   * and `true` serve; `false` keeps the entry configured — its row survives in
+   * settings and on the Models page — while it is dropped before any wire fact
+   * is resolved, so a route whose every entry is disabled registers no models
+   * rather than failing to materialize. This is what lets a management surface
+   * list everything a provider offers and toggle visibility per model without
+   * deleting rows.
+   */
+  enabled?: boolean
   /** Maximum combined request and response context in tokens. */
   contextWindow?: number
   /**
@@ -845,7 +855,14 @@ export function resolveRouteModels(request: RouteCatalogRequest): RouteCatalog {
   }
   const seen = new Set<string>()
   const configuredMaxTokens = new Map<string, number>()
-  const models = entries.map((entry) => {
+  // A model toggled off stays configured — its row survives in settings and on
+  // the Models page — but serves nothing: it leaves before any wire fact is
+  // resolved, so a route whose every entry is disabled registers no models
+  // instead of failing to materialize. Structural validation below still runs
+  // first over the whole configured list, so a typo cannot hide behind the
+  // switch.
+  const servedEntries = entries.filter(entry => entry.enabled !== false)
+  const models = servedEntries.map((entry) => {
     if (entry.id.length === 0) invalid(provider, 'has a model with an empty id')
     if (seen.has(entry.id)) invalid(provider, `lists model "${entry.id}" more than once`)
     seen.add(entry.id)

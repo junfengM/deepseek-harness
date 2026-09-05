@@ -29,6 +29,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib'
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Entry } from '@deepseek-ai/cordis-plugin-loader'
@@ -547,6 +548,8 @@ export class ClientModuleRegistry extends Service {
   private batchResponses = new Map<string, { body: Buffer; contentType: string }>()
   /** One prior graph generation covers a request racing the HMR recomposition that replaced its URL. */
   private previousBatchResponses = new Map<string, { body: Buffer; contentType: string }>()
+  /** Compressed variants per bundle path + etag: built once, reused per request. */
+  private readonly compressedBundles = new Map<string, { br: Buffer; gzip: Buffer }>()
   private flushQueued = false
   private composed: WebBootGraph
 
@@ -1010,11 +1013,46 @@ export class ClientModuleRegistry extends Service {
     const resourceUrl = `${requestUrl.pathname}${requestUrl.search}`
     const response = this.responses.get(resourceUrl) ?? this.previousBatchResponses.get(resourceUrl)
     if (response !== undefined) {
+      // Rev'd URLs are content-addressed (the boot graph appends ?rev=<hash>):
+      // already cached forever via IMMUTABLE_CACHE. Add memoized brotli/gzip +
+      // etag 304 so warm mobile reloads also stop refetching megabytes of
+      // modules — the wire bytes drop ~4x.
+      const body = response.body
+      const etag = `"${createHash('sha1').update(body).digest('hex')}"`
+      if (req.headers?.['if-none-match'] === etag) {
+        res.writeHead(304, { etag })
+        res.end()
+        return
+      }
+      let payload: Buffer = body
+      let encoding: string | undefined
+      const ae = req.headers?.['accept-encoding'] ?? ''
+      if (typeof ae === 'string' && ae.length > 0) {
+        let memo = this.compressedBundles.get(`${resourceUrl}:${etag}`)
+        if (memo === undefined) {
+          memo = {
+            br: brotliCompressSync(body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } }),
+            gzip: gzipSync(body, { level: 6 }),
+          }
+          this.compressedBundles.set(`${resourceUrl}:${etag}`, memo)
+        }
+        if (/\bbr\b/i.test(ae)) {
+          payload = memo.br
+          encoding = 'br'
+        } else if (/\bgzip\b/i.test(ae)) {
+          payload = memo.gzip
+          encoding = 'gzip'
+        }
+      }
       res.writeHead(200, {
         'content-type': response.contentType,
+        'content-length': payload.length,
         'cache-control': IMMUTABLE_CACHE,
+        etag,
+        ...(encoding !== undefined ? { 'content-encoding': encoding } : {}),
+        vary: 'Accept-Encoding',
       })
-      res.end(req.method === 'HEAD' ? undefined : response.body)
+      res.end(req.method === 'HEAD' ? undefined : payload)
       return
     }
     // Anything else under /plugins (including unadvertised combinations and

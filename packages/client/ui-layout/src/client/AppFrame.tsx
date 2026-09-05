@@ -15,7 +15,12 @@ import type { ReactNode } from 'react'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import { computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
+import { FishLogo } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  clampWidth, computeColumns, DETAILS_DEFAULT, DETAILS_MAX, DETAILS_MIN,
+  DRAWER_VIEWPORT, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT,
+  SIDEBAR_MAX, SIDEBAR_MIN,
+} from './columns.ts'
 import { DocumentTitle } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
@@ -149,7 +154,32 @@ export function AppFrame({
   const sidebarPreference = sidebarCollapsed
     ? 0
     : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
-  const cols = computeColumns(viewport, sidebarPreference, detailsSession === undefined ? 0 : panels.details)
+
+  // Phone-width frames (drawer mode) float the panels over the conversation
+  // instead of giving them grid tracks: below DRAWER_VIEWPORT the concession
+  // chain cannot help — an expanded sidebar would crush the center column to a
+  // ~110px sliver on a 390px phone, and the details panel can never fit its
+  // DETAILS_MIN next to CENTER_MIN, leaving it unreachable. In drawer mode the
+  // collapsed rail is dropped entirely (a small floating toggle reopens the
+  // drawer); an expanded sidebar and an open details panel render as overlay
+  // drawers (see the render site below).
+  const drawerMode = viewport < DRAWER_VIEWPORT
+  const detailsPreference = detailsSession === undefined ? 0 : panels.details
+  const detailsDrawerOpen = drawerMode && detailsPreference > 0
+  const sidebarDrawerOpen = drawerMode && !sidebarCollapsed
+  const cols = drawerMode
+    ? { sidebar: 0, center: viewport, details: 0 }
+    : computeColumns(viewport, sidebarPreference, detailsSession === undefined ? 0 : panels.details)
+  // Drawer widths follow the stored preferences, clamped to leave the rail
+  // (sidebar) or a sliver of the conversation (details) visible beside them.
+  const sidebarDrawerWidth = Math.min(
+    clampWidth(panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar, SIDEBAR_MIN, SIDEBAR_MAX),
+    Math.max(viewport - SIDEBAR_COLLAPSED - 24, SIDEBAR_MIN),
+  )
+  const detailsDrawerWidth = Math.min(
+    clampWidth(detailsPreference || DETAILS_DEFAULT, DETAILS_MIN, DETAILS_MAX),
+    Math.max(viewport - SIDEBAR_COLLAPSED - 24, DETAILS_MIN),
+  )
   const colsRef = useRef(cols)
   colsRef.current = cols
 
@@ -179,6 +209,7 @@ export function AppFrame({
       style={{ gridTemplateColumns: `${cols.sidebar}px minmax(0, 1fr) ${cols.details}px` }}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-details-collapsed={cols.details === 0 || undefined}
+      data-drawer-mode={drawerMode || undefined}
       data-dragging={dragging || undefined}
     >
       <DocumentTitle
@@ -190,8 +221,13 @@ export function AppFrame({
             sidebar keeps the mounted slot at the compact-rail width, and the
             component sees its rendered state as owner params decided here
             (collapsed follows the resolved rail, so a derived auto-collapse
-            renders the rail UI too). */}
-        {renderSlot('sidebar', {
+            renders the rail UI too). Wide mode renders it unconditionally;
+            drawer mode renders it only inside the open drawer — the phone
+            frame has no permanent rail (the floating toggle reopens the
+            drawer). The column element itself stays mounted in every case:
+            grid items occupy tracks by DOM order, so dropping it would shift
+            the conversation into the zero-width sidebar track. */}
+        {!drawerMode && renderSlot('sidebar', {
           collapsed: sidebarCollapsed,
           width: cols.sidebar,
         })}
@@ -201,18 +237,56 @@ export function AppFrame({
             paint — no loading gate: a bare status line reads worse than
             the shell's own pending rendering. The conversation
             is session-maybe; SessionProvider withholds the strict details
-            entry while no session is current. */}
+            entry while no session is current. In drawer mode an open panel
+            renders in its drawer instead; the subtree stays mounted either
+            way. */}
         <CenterColumn>{renderSlot('conversation', {})}</CenterColumn>
         <DetailsColumn>
-          <SessionProvider>{renderSlot('details', {})}</SessionProvider>
+          <SessionProvider>
+            {detailsDrawerOpen ? null : renderSlot('details', {})}
+          </SessionProvider>
         </DetailsColumn>
       </>
       <div className={css.overlayLayer} data-shell-overlay>
         {renderSlot('shell.overlay', {})}
       </div>
-      {/* The collapsed rail is fixed-width: no resize handle while closed. */}
-      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
-      {cols.details > 0 && <DragHandle side="details" left={viewport - cols.details} onStart={onDetailsStart} onDrag={onDetailsDrag} onEnd={onDragEnd} />}
+      {/* Drawer-mode reopen control: with the rail dropped, this small
+          floating button is the only entry to the sidebar drawer. It sits
+          under the backdrop/drawers so an open panel covers it. The DeepSeek
+          fish mark doubles as the menu glyph, matching the hero's brand. */}
+      {drawerMode && !sidebarDrawerOpen && (
+        <button
+          className={css.drawerToggle}
+          aria-label="打开侧边栏"
+          onClick={() => actions.toggleSidebar()}
+        >
+          <FishLogo size={20} />
+        </button>
+      )}
+      {/* Drawer-mode panels float over the conversation; the backdrop closes
+          them (toggleSidebar flips narrowExpanded below SIDEBAR_AUTO_COLLAPSE,
+          which drawer mode always is). Drawers sit under the shell overlay
+          layer (fullscreen dialogs) but above every column. */}
+      {sidebarDrawerOpen && (
+        <>
+          <div className={css.drawerBackdrop} onClick={() => actions.toggleSidebar()} />
+          <div className={css.drawerLeft} style={{ width: sidebarDrawerWidth }}>
+            {renderSlot('sidebar', { collapsed: false, width: sidebarDrawerWidth })}
+          </div>
+        </>
+      )}
+      {detailsDrawerOpen && (
+        <>
+          <div className={css.drawerBackdrop} onClick={() => actions.closeDetails()} />
+          <div className={css.drawerRight} style={{ width: detailsDrawerWidth }}>
+            <SessionProvider>{renderSlot('details', {})}</SessionProvider>
+          </div>
+        </>
+      )}
+      {/* The collapsed rail is fixed-width: no resize handle while closed.
+          Drawer mode has no tracks to resize: handles render wide-only. */}
+      {!sidebarCollapsed && !drawerMode && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
+      {cols.details > 0 && !drawerMode && <DragHandle side="details" left={viewport - cols.details} onStart={onDetailsStart} onDrag={onDetailsDrag} onEnd={onDragEnd} />}
     </div>
   )
 }

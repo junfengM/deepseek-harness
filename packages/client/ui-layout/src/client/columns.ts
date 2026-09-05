@@ -31,6 +31,14 @@ export const SIDEBAR_COLLAPSED = 56
  * LG breakpoint); a manual toggle below it re-expands over the squeezed center
  * (stores.ts narrowExpanded). */
 export const SIDEBAR_AUTO_COLLAPSE = 1024
+/**
+ * Viewport width below which panels render as overlay drawers instead of grid
+ * tracks (AppFrame). Below it the concession chain cannot help: an expanded
+ * sidebar would squeeze the center column to a sliver (a 390px phone leaves
+ * ~110px), and the details panel can never fit DETAILS_MIN next to CENTER_MIN,
+ * so it is unreachable. Drawers float over the conversation instead.
+ */
+export const DRAWER_VIEWPORT = 700
 /** Details drag clamp floor. */
 export const DETAILS_MIN = 300
 /** Details drag clamp ceiling. */

@@ -209,7 +209,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     })
   }
 
-  const patch = (index: number, next: Record<string, string | number | undefined>): void => {
+  const patch = (index: number, next: Record<string, string | number | boolean | undefined>): void => {
     onChange(models.map((model, at) => {
       if (at !== index) return model
       // Rebuilt rather than spread over: an emptied optional field has to leave
@@ -348,8 +348,30 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
       </div>
       {models.length === 0 ? <p className={styles['modelEmpty']}>{t('modelsEmpty')}</p> : null}
       {models.map((model, index) => (
-        <div key={index} className={styles['modelEntry']}>
+        <div
+          key={index}
+          className={model.enabled === false
+            ? `${styles['modelEntry']} ${styles['modelEntryDisabled']}`
+            : styles['modelEntry']}
+        >
           <div className={styles['modelRow']}>
+            <button
+              type="button"
+              role="switch"
+              className={styles['modelToggle']}
+              aria-checked={model.enabled !== false}
+              aria-label={`${t('modelToggle')} ${index + 1}`}
+              title={t('modelToggle')}
+              disabled={disabled}
+              onClick={() => {
+                // On: the field leaves the profile entirely, so an enabled row
+                // reads identically to one never touched; off stores the only
+                // value that means withheld.
+                patch(index, { enabled: model.enabled === false ? undefined : false })
+              }}
+            >
+              <span className={styles['modelToggleKnob']} />
+            </button>
             <input
               className={styles['input']}
               type="text"
