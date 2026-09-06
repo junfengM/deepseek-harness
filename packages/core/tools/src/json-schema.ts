@@ -87,6 +87,11 @@ const ANNOTATION_KEYWORDS = new Set(['description', 'title', 'default', 'example
 const SCHEMA_TYPES: readonly JsonSchemaType[] = ['object', 'array', 'string', 'number', 'integer', 'boolean', 'null']
 
 /* jscpd:ignore-start -- this realm boundary mirrors the session-owned lossless-JSON intrinsic test */
+/** Whether a constructor source string is the engine's native spelling (see dsh-util-values). */
+function isNativeConstructorSource(source: string, name: 'Array' | 'Object'): boolean {
+  return source.replace(/\s+/gu, ' ') === `function ${name}() { [native code] }`
+}
+
 /** Whether a realm-owned intrinsic prototype is backed by its native constructor. */
 function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): boolean {
   const descriptor = Object.getOwnPropertyDescriptor(prototype, 'constructor')
@@ -95,7 +100,7 @@ function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): b
   try {
     return constructor.name === name
       && constructor.prototype === prototype
-      && Function.prototype.toString.call(constructor) === `function ${name}() { [native code] }`
+      && isNativeConstructorSource(Function.prototype.toString.call(constructor), name)
   } catch {
     return false
   }

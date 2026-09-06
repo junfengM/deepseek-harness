@@ -15,6 +15,16 @@ export function assertNever(value: never, context?: string): never {
 }
 
 /** Whether a realm-owned intrinsic prototype is backed by its native constructor. */
+function isNativeConstructorSource(source: string, name: 'Array' | 'Object'): boolean {
+  // V8 spells intrinsics on one line (`function Array() { [native code] }`)
+  // while JavaScriptCore/SpiderMonkey wrap the body across lines — collapse
+  // every whitespace run before comparing so all engines match. A forged
+  // spelling stays unforgeable: `[native code]` is not valid function-body
+  // syntax, so only a genuine native constructor can produce this text.
+  return source.replace(/\s+/gu, ' ') === `function ${name}() { [native code] }`
+}
+
+/** Whether a realm-owned intrinsic prototype is backed by its native constructor. */
 function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): boolean {
   const descriptor = Object.getOwnPropertyDescriptor(prototype, 'constructor')
   const constructor: unknown = descriptor?.value
@@ -22,7 +32,7 @@ function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): b
   try {
     return constructor.name === name
       && constructor.prototype === prototype
-      && Function.prototype.toString.call(constructor) === `function ${name}() { [native code] }`
+      && isNativeConstructorSource(Function.prototype.toString.call(constructor), name)
   } catch {
     return false
   }
