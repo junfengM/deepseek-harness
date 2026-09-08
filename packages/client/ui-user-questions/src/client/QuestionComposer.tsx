@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import {
   Button, IconCheckOutline14, IconChevronDownOutline14, IconChevronLeftOutline14,
   IconChevronRightOutline14, IconChevronUpOutline14, IconCloseOutline16,
-  IconEditOutline16, MarkdownText,
+  IconEditOutline16, MarkdownText, isTouchPrimary,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   planReviewOf,
@@ -152,7 +152,10 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
   const [minimized, setMinimized] = useState(false)
   // The free-form textarea autofocuses on first presentation; re-expanding a
   // collapsed question must not steal focus from the expand toggle back into
-  // the input, so focus is granted once per question index.
+  // the input, so focus is granted once per question index. Touch-primary
+  // devices never take the auto-focus: switching to a session that is
+  // waiting for an answer would pop the on-screen keyboard over the
+  // conversation; tapping the field still focuses it natively.
   const focusedQuestions = useRef(new Set<number>())
   // Every navigation write stays in bounds and drafts mirrors questions 1:1.
   // oxlint-disable-next-line typescript/no-non-null-assertion
@@ -385,7 +388,7 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
                   )
                   : (
                     <AnswerField
-                      autoFocus={!focusedQuestions.current.has(index)}
+                      autoFocus={!isTouchPrimary() && !focusedQuestions.current.has(index)}
                       variant="block"
                       value={draft.custom}
                       disabled={busy !== null}

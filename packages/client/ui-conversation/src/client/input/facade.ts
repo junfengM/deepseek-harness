@@ -359,6 +359,14 @@ export class SessionInputShell implements SessionInput {
    * dismisses and the menu tracks frozen.
    */
   submit(mode: InputSubmitMode = 'queue'): void {
+    // Announce the submit intent to non-state listeners (dictation controls):
+    // an ordinary default send deliberately leaves the phase 'plain' (the
+    // optimistic send keeps the composer editable in flight), so the
+    // published input state cannot carry this signal. Guarded: the shell also
+    // runs under node (tests), where there is no window to announce on.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dsh:composer-submit'))
+    }
     if (this.snapshot.draft.trim() === '' && this.attachmentIds.length > 0) {
       if (this.snapshot.phase === 'plain') {
         const attachmentIds = [...this.attachmentIds]

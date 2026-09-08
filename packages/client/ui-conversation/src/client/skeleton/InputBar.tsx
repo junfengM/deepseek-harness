@@ -17,7 +17,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  IconPaperclipOutline16, IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
+  IconPaperclipOutline16, IconPlusOutline16, IconWarningOutline16, Toast, Tooltip, isTouchPrimary,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the `plan` projection key merge (the TodoDock posture — the
 // composer reads a host-computed value; the domain owns the key).
@@ -178,8 +178,12 @@ export const InputBar = memo(function InputBar({
   // scroll walk (preventScroll inside), so the reveal in our own scrollport
   // is ours to perform — switching to a longer draft otherwise leaves the
   // caret (restored at the draft's end) off screen.
+  // Touch-primary devices skip the auto-focus: opening a session from the
+  // sidebar list would pop the on-screen keyboard over the conversation the
+  // user just navigated to. A native tap into the editor still focuses it.
   useEffect(() => {
     if (locked || editor === null) return
+    if (isTouchPrimary()) return
     // Lexical's focus() restores the editor selection but never calls the DOM
     // focus itself; preventScroll keeps the conversation scrollport still.
     editor.getRootElement()?.focus({ preventScroll: true })
@@ -311,7 +315,11 @@ export const InputBar = memo(function InputBar({
   // typing continues seamlessly. Lexical's focus() carries preventScroll and
   // restores the previous selection, so no reveal is needed: the caret has
   // not moved, and the next keystroke gets the browser's native one.
+  // Touch-primary devices skip the restore: focusing the editor pops the
+  // on-screen keyboard (sending a dictated message must not open it), and
+  // the tap's native focus behavior is fine there.
   const keepFocus = (e: MouseEvent<HTMLButtonElement>): void => {
+    if (isTouchPrimary()) return
     e.preventDefault()
     editor?.getRootElement()?.focus({ preventScroll: true })
   }

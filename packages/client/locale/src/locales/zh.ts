@@ -27,6 +27,7 @@ export const zh = {
   'more': '更多',
   'collapse': '收起',
   'expand': '展开',
+  'sidebar.open': '打开侧边栏',
   'back': '返回',
   'brand.localBuild': 'DSH 本地构建',
   'unknown': '未知',

@@ -331,6 +331,10 @@
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+  /* Keep touch pans inside the transcript: at the top/bottom edge the pan
+     would otherwise chain to the document, which rubber-bands the whole
+     window on iOS (no document scroll to absorb it). */
+  overscroll-behavior: contain;
   /* Reserved unconditionally: the composer seat rides this box's content box in
      Chat and its padding box under a view's composer overlay, so an `auto`
      gutter moves the input card sideways by the bar's width whenever the two

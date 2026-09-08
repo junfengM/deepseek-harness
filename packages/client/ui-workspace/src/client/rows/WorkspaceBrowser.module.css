@@ -503,3 +503,13 @@
     transition: none;
   }
 }
+
+/* Phone frames (< DRAWER_VIEWPORT): text inputs must stay at >= 16px or iOS
+   Safari zooms the page on focus (same focus-zoom as the composer). The
+   sidebar search field and the rename dialogs take the floor here. */
+@media (max-width: 699px) {
+  .searchInput,
+  .renameInput {
+    font-size: 16px;
+  }
+}
