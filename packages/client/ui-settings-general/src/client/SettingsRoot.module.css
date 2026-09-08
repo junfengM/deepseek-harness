@@ -234,3 +234,78 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Phone frames (< DRAWER_VIEWPORT, kept in sync with ui-layout): the desktop
+   panel is 800px with a fixed 188px rail, so on a 390px phone the content
+   column collapses to ~150px — narrower than the narrowest section content
+   (the agent-preset card grid's 268px minmax), which then overflows and is
+   clipped by the panel's own overflow:hidden. Below 700px the panel goes
+   full-bleed, the rail becomes a horizontally scrollable tab strip, and the
+   close button floats over that strip's right end (its own header row would
+   otherwise cost a full line above the content). */
+@media (max-width: 699px) {
+  .panel {
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .nav {
+    flex: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    /* Right inset reserves the floating close button's seat. */
+    padding: 10px 44px 8px 12px;
+    box-sizing: border-box;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .navTitle {
+    flex: none;
+    padding: 0;
+  }
+
+  .navList {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .navCell {
+    flex: none;
+    height: 36px;
+    padding: 0 12px;
+  }
+
+  .navLabel {
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .content {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Float the actions + close out of the flow: the tab strip above already
+     owns the panel's top edge. */
+  .header {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    height: auto;
+    padding: 0;
+  }
+
+  .options {
+    padding: 0 16px 16px;
+  }
+}
