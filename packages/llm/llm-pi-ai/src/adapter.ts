@@ -212,6 +212,30 @@ function requestHeaders(headers: Readonly<Record<string, string>> | undefined): 
 }
 
 /**
+ * Session-affinity headers for one request. OpenAI-compatible gateways route and
+ * cache per conversation, and OpenCode Go refuses a request that names no
+ * conversation at all (400 `MissingSessionID`) — the pi-ai adapters it serves
+ * never derive this header from `options.sessionId` themselves, because the
+ * session-affinity spellings pi-ai knows (`session_id`, `x-session-id`,
+ * `x-client-request-id`, `x-session-affinity`) do not include this one.
+ *
+ * `x-opencode-session` is the name that gateway's own contract asks every
+ * client to send; `x-deepseek-harness-session-id` is the Harness's native name,
+ * which the same gateway also recognizes. Both carry the same opaque session
+ * id, so a route that understands only one of them still receives it, and a
+ * provider that understands neither ignores both.
+ * @param sessionId - the request's session id, when the caller named one.
+ * @returns the headers to merge, empty when the request is not session-scoped.
+ */
+function sessionHeaders(sessionId: string | undefined): Record<string, string> {
+  if (sessionId === undefined) return {}
+  return {
+    'x-opencode-session': sessionId,
+    'x-deepseek-harness-session-id': sessionId,
+  }
+}
+
+/**
  * pi-ai-backed multi-provider adapter. Each operation reads the current
  * profiles, so a configuration change reaches the next request without a
  * restart; model descriptors come from the collection those profiles built.
@@ -377,15 +401,17 @@ export class PiAiAdapter extends LlmAdapter {
             maxBytes: profile.requestImageMaxBytes,
           },
         }, onReplayDegrade)
+      const sessionId = options.sessionId === undefined ? undefined : String(options.sessionId)
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
-        ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
+        ...sessionId === undefined ? {} : { sessionId },
         signal: watchdog.signal,
         // Profile headers are deployment-owned; attribution names are
-        // Harness-owned and therefore win collisions.
-        headers: requestHeaders(profile.headers),
+        // Harness-owned and therefore win collisions, and the per-request
+        // session id outranks a deployment's fixed session header.
+        headers: { ...requestHeaders(profile.headers), ...sessionHeaders(sessionId) },
       })
       const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]()
       let exhausted = false
