@@ -91,7 +91,7 @@ afterEach(() => {
 })
 
 describe('BrowserAuth', () => {
-  it('mints one process token and a persistent authority-bound cookie', async () => {
+  it('mints one durable launch token and a persistent authority-bound cookie', async () => {
     const store = new RecordCredentials()
     const processOwner = {}
     const first = await createAuth(store, 30, processOwner)
@@ -121,7 +121,7 @@ describe('BrowserAuth', () => {
 
     const restarted = await createAuth(store)
     expect(new URL(restarted.authenticatedUrl('http://127.0.0.1:3080')).searchParams.get('token'))
-      .not.toBe(new URL(login.launchUrl).searchParams.get('token'))
+      .toBe(new URL(login.launchUrl).searchParams.get('token'))
     expect(restarted.isAuthenticated(request('/', '127.0.0.1:3080', { cookie: login.cookie }))).toBe(true)
     const staleUrl = new URL(login.launchUrl)
     const redirected = response()
