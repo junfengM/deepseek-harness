@@ -123,6 +123,26 @@ describe('PiAiAdapter provider routing', () => {
     expect(server.headers[0]?.['user-agent']).toBe(userAgent())
   })
 
+  it('names the conversation on the wire so a routing gateway can accept the request', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness(server.url)
+    await assemble(ctx, {
+      model: 'deepseek-v4-flash',
+      messages: [],
+      sessionId: 'session-for-routing' as never,
+    })
+    expect(server.headers[0]?.['x-opencode-session']).toBe('session-for-routing')
+    expect(server.headers[0]?.['x-deepseek-harness-session-id']).toBe('session-for-routing')
+  })
+
+  it('sends no session header for a request the caller did not scope to a session', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness(server.url)
+    await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    expect(server.headers[0]?.['x-opencode-session']).toBeUndefined()
+    expect(server.headers[0]?.['x-deepseek-harness-session-id']).toBeUndefined()
+  })
+
   it('forwards common stream options and profile reasoning', async () => {
     const server = await mockServer([{ events: textEvents }])
     const ctx = await harness(server.url, {
