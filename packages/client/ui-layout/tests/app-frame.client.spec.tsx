@@ -275,8 +275,11 @@ describe('AppFrame normal width concessions', () => {
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
     expect(instance.getSnapshot().layoutInfo).toMatchObject({ rightbarShown: true, rightbar: 864 })
     act(() => { instance.actions.closeRightbar() })
+    // Below DRAWER_VIEWPORT the frame keeps neither track: the collapsed rail is
+    // replaced by the floating drawer toggle, so the sidebar contributes no
+    // width and the conversation takes the whole frame (AppFrame drawer mode).
     resize(455)
-    expect(tracks(frame)).toEqual([56, 0])
+    expect(tracks(frame)).toEqual([0, 0])
     resize(1920)
     expect(tracks(frame)).toEqual([420, 0])
   })

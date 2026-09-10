@@ -474,3 +474,38 @@
 .root[data-phase='settling'] .composerSeat {
   visibility: hidden;
 }
+
+/* Phone frames (< DRAWER_VIEWPORT, kept in sync with ui-layout): slim top
+   bar. This block lives LAST so its declarations cascade over every base
+   rule above — an earlier placement let the base .crumbs display:flex win
+   (equal specificity, later order), leaving the truncating title visible
+   under the floating fish toggle. The header keeps only its actions slot
+   (current agent preset, jobs entry), right-aligned; the floating fish
+   toggle owns the left edge. */
+@media (max-width: 699px) {
+  .header:not(.headerHidden) {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 8px 10px;
+    border-bottom: none;
+  }
+
+  .header:not(.headerHidden)::after {
+    display: none;
+  }
+
+  .titleRow {
+    min-height: 0;
+  }
+
+  .titleCluster {
+    justify-content: flex-end;
+  }
+
+  .crumbs,
+  .headerUtilities,
+  .tabs {
+    display: none;
+  }
+}

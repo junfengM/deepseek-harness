@@ -13,13 +13,23 @@
  * shown/track/fullscreen through `ctx.layout`; fullscreen keeps the reported
  * track but hides the outer resize handle. Everything arrives through the framework
  * shares — zero cordis or framework imports, zero self-made hooks.
+ *
+ * Phone-width frames (below DRAWER_VIEWPORT) keep neither track: the collapsed
+ * rail is replaced by a floating toggle and each panel renders as an overlay
+ * drawer over the conversation instead (columns.ts explains why the concession
+ * chain cannot serve that width).
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import { computeColumns, RIGHTBAR_DEFAULT_RATIO, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
+import { FishLogo } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  clampWidth, computeColumns, DRAWER_VIEWPORT, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO,
+  RIGHTBAR_MIN, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MAX,
+  SIDEBAR_MIN,
+} from './columns.ts'
 import { DocumentTitle } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
@@ -166,7 +176,31 @@ export function AppFrame({
   // Opening on a narrow frame collapses the left sidebar. Eligibility must
   // include that space before the occupant's first shown report arrives.
   const normal = computeColumns(viewport, !layoutInfo.rightbarShown && narrow ? 0 : sidebarPreference, rightbarPreference)
-  const cols = computeColumns(viewport, sidebarPreference, layoutInfo.rightbarTrack ? rightbarPreference : 0)
+
+  // Phone-width frames (drawer mode) float the panels over the conversation
+  // instead of giving them grid tracks: below DRAWER_VIEWPORT the concession
+  // chain cannot help — an expanded sidebar would crush the center column to a
+  // ~110px sliver on a 390px phone, and the right panel can never fit its
+  // RIGHTBAR_MIN next to CENTER_MIN, leaving it unreachable. In drawer mode the
+  // collapsed rail is dropped entirely (a small floating toggle reopens the
+  // drawer); an expanded sidebar and an open right panel render as overlay
+  // drawers (see the render sites below).
+  const drawerMode = viewport < DRAWER_VIEWPORT
+  const sidebarDrawerOpen = drawerMode && !sidebarCollapsed
+  const rightbarDrawerOpen = drawerMode && layoutInfo.rightbarShown
+  const cols = drawerMode
+    ? { sidebar: 0, center: viewport, rightbar: 0 }
+    : computeColumns(viewport, sidebarPreference, layoutInfo.rightbarTrack ? rightbarPreference : 0)
+  // Drawer widths follow the stored preferences, clamped to leave a sliver of
+  // the conversation visible beside them.
+  const sidebarDrawerWidth = Math.min(
+    clampWidth(layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : layoutInfo.sidebar, SIDEBAR_MIN, SIDEBAR_MAX),
+    Math.max(viewport - SIDEBAR_COLLAPSED - 24, SIDEBAR_MIN),
+  )
+  const rightbarDrawerWidth = Math.min(
+    clampWidth(rightbarPreference, RIGHTBAR_MIN, viewport * RIGHTBAR_MAX_RATIO),
+    Math.max(viewport - SIDEBAR_COLLAPSED - 24, RIGHTBAR_MIN),
+  )
   const colsRef = useRef(cols)
   colsRef.current = cols
   const rightbarWidth = useRef(normal.rightbar)
@@ -211,6 +245,7 @@ export function AppFrame({
       data-rightbar-collapsed={cols.rightbar === 0 || undefined}
       data-rightbar-fullscreen={layoutInfo.rightbarFullscreen || undefined}
       data-rightbar-instant={layoutInfo.rightbarInstant || undefined}
+      data-drawer-mode={drawerMode || undefined}
       data-dragging={dragging || undefined}
     >
       <DocumentTitle
@@ -219,20 +254,73 @@ export function AppFrame({
         usePanelInfo={usePanelInfo}
       />
       <div className={css.sidebarCol}>
-        {sidebar}
+        {/* Render-site slot call with live concession output: a closed
+            sidebar keeps the mounted slot at the compact-rail width, and the
+            component sees its rendered state as owner params decided here
+            (collapsed follows the resolved rail, so a derived auto-collapse
+            renders the rail UI too). Wide mode renders it unconditionally;
+            drawer mode renders it only inside the open drawer — the phone
+            frame has no permanent rail (the floating toggle reopens the
+            drawer). The column element itself stays mounted in every case:
+            grid items occupy tracks by DOM order, so dropping it would shift
+            the conversation into the zero-width sidebar track. */}
+        {drawerMode ? null : sidebar}
       </div>
       <>
+        {/* Both column occupants stay at fixed tree positions from first
+            paint — no loading gate: a bare status line reads worse than
+            the shell's own pending rendering. The conversation
+            is session-maybe; the right occupant withholds its own strict
+            content while no session is current. In drawer mode an open panel
+            renders in its drawer instead; the subtree stays mounted either
+            way. */}
         <CenterColumn>{main}</CenterColumn>
         <RightbarColumn>
-          {renderSlot('rightbar', { width: normal.rightbar, viewportWidth: viewport, canShow: normal.rightbar > 0 })}
+          {rightbarDrawerOpen
+            ? null
+            : renderSlot('rightbar', { width: normal.rightbar, viewportWidth: viewport, canShow: normal.rightbar > 0 })}
         </RightbarColumn>
       </>
       <div className={css.overlayLayer} data-shell-overlay>
         {overlays}
       </div>
-      {/* The collapsed rail is fixed-width: no resize handle while closed. */}
-      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
-      {layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && (
+      {/* Drawer-mode reopen control: with the rail dropped, this small
+          floating button is the only entry to the sidebar drawer. It sits
+          under the backdrop/drawers so an open panel covers it. The DeepSeek
+          fish mark doubles as the menu glyph, matching the hero's brand. */}
+      {drawerMode && !sidebarDrawerOpen && (
+        <button
+          className={css.drawerToggle}
+          aria-label="打开侧边栏"
+          onClick={() => { actions.toggleSidebar() }}
+        >
+          <FishLogo size={20} />
+        </button>
+      )}
+      {/* Drawer-mode panels float over the conversation; the backdrop closes
+          them (toggleSidebar flips narrowExpanded below SIDEBAR_AUTO_COLLAPSE,
+          which drawer mode always is). Drawers sit under the shell overlay
+          layer (fullscreen dialogs) but above every column. */}
+      {sidebarDrawerOpen && (
+        <>
+          <div className={css.drawerBackdrop} onClick={() => { actions.toggleSidebar() }} />
+          <div className={css.drawerLeft} style={{ width: sidebarDrawerWidth }}>
+            {renderSlot('sidebar', { collapsed: false, width: sidebarDrawerWidth })}
+          </div>
+        </>
+      )}
+      {rightbarDrawerOpen && (
+        <>
+          <div className={css.drawerBackdrop} onClick={() => { actions.closeRightbar() }} />
+          <div className={css.drawerRight} style={{ width: rightbarDrawerWidth }}>
+            {renderSlot('rightbar', { width: rightbarDrawerWidth, viewportWidth: viewport, canShow: true })}
+          </div>
+        </>
+      )}
+      {/* The collapsed rail is fixed-width: no resize handle while closed.
+          Drawer mode has no tracks to resize: handles render wide-only. */}
+      {!sidebarCollapsed && !drawerMode && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
+      {layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && !drawerMode && (
         <DragHandle side="rightbar" left={viewport - normal.rightbar} onStart={onRightbarStart} onDrag={onRightbarDrag} onEnd={onDragEnd} />
       )}
     </div>
