@@ -29,6 +29,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib'
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Entry } from '@deepseek-ai/cordis-plugin-loader'
@@ -532,6 +533,8 @@ export class ClientModuleRegistry extends Service {
   private batchResponses = new Map<string, { body: Buffer; contentType: string }>()
   /** One prior graph generation covers a request racing the HMR recomposition that replaced its URL. */
   private previousBatchResponses = new Map<string, { body: Buffer; contentType: string }>()
+  /** Compressed variants per bundle path + etag: built once, reused per request. */
+  private readonly compressedBundles = new Map<string, { br: Buffer; gzip: Buffer }>()
   private flushQueued = false
   private composed: WebBootGraph
 
@@ -1027,9 +1030,54 @@ export class ClientModuleRegistry extends Service {
 
   private readonly serveBundle = (req: IncomingMessage, res: ServerResponse): void => {
     /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server requests. */
-    const response = this.bundleResource(req.method, req.url ?? '/')
-    res.writeHead(response.status, response.headers)
-    res.end(response.body)
+    const url = req.url ?? '/'
+    const response = this.bundleResource(req.method, url)
+    // Rev'd URLs are content-addressed (the boot graph appends ?rev=<hash>), so
+    // they are cached forever through IMMUTABLE_CACHE already. Memoized
+    // brotli/gzip plus an etag 304 on top of that stop warm mobile reloads from
+    // refetching megabytes of modules — the wire bytes drop roughly 4x. Only
+    // this node:http path negotiates: the shell carrier's synthetic Response
+    // has no transport encoding to renegotiate.
+    if (response.status !== 200 || response.body === undefined) {
+      res.writeHead(response.status, response.headers)
+      res.end(response.body)
+      return
+    }
+    const body = response.body
+    const etag = `"${createHash('sha1').update(body).digest('hex')}"`
+    if (req.headers?.['if-none-match'] === etag) {
+      res.writeHead(304, { etag })
+      res.end()
+      return
+    }
+    let payload: Buffer = body
+    let encoding: string | undefined
+    const acceptEncoding = req.headers?.['accept-encoding']
+    if (typeof acceptEncoding === 'string' && acceptEncoding.length > 0) {
+      let memo = this.compressedBundles.get(`${url}:${etag}`)
+      if (memo === undefined) {
+        memo = {
+          br: brotliCompressSync(body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } }),
+          gzip: gzipSync(body, { level: 6 }),
+        }
+        this.compressedBundles.set(`${url}:${etag}`, memo)
+      }
+      if (/\bbr\b/i.test(acceptEncoding)) {
+        payload = memo.br
+        encoding = 'br'
+      } else if (/\bgzip\b/i.test(acceptEncoding)) {
+        payload = memo.gzip
+        encoding = 'gzip'
+      }
+    }
+    res.writeHead(200, {
+      ...response.headers,
+      'content-length': String(payload.length),
+      etag,
+      ...(encoding === undefined ? {} : { 'content-encoding': encoding }),
+      vary: 'Accept-Encoding',
+    })
+    res.end(req.method === 'HEAD' ? undefined : payload)
   }
 }
 

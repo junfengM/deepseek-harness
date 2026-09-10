@@ -12,9 +12,11 @@
  * @module @deepseek-ai/dsh-host-frontend-static
  */
 
-import type { ServerResponse } from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path'
+import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-client-connection'
@@ -58,6 +60,51 @@ const STATIC_MISS_CODES: ReadonlySet<string | undefined> = new Set([
   'ENOTDIR',
 ])
 
+/** One file's served form: strong etag plus lazily-built compressed variants. */
+interface EncodedFile {
+  readonly plain: Buffer
+  readonly etag: string
+  gzip?: Buffer
+  br?: Buffer
+}
+
+/** Memoized per absolute path: compression runs once per server lifetime. */
+const encodedFiles = new Map<string, EncodedFile>()
+
+/** Vite content-hashed asset (e.g. /assets/index-ClqxG24t.js): safe to cache forever. */
+const HASHED_ASSET = /^\/assets\/.+-[0-9A-Za-z_-]{6,}\.[a-z][a-z0-9.]*$/
+
+/**
+ * Build the memoized encoded form of one file: strong etag plus brotli/gzip
+ * variants built on first request (brotli at a fast quality — the point is
+ * wire size, not maximum ratio) so repeat mobile visits transfer ~4x less.
+ */
+function encodeFile(target: string, body: string | Buffer): EncodedFile {
+  const plain = Buffer.isBuffer(body) ? body : Buffer.from(body)
+  let entry = encodedFiles.get(target)
+  if (entry === undefined || !entry.plain.equals(plain)) {
+    entry = {
+      plain,
+      etag: `"${createHash('sha1').update(plain).digest('hex')}"`,
+      gzip: gzipSync(plain, { level: 6 }),
+      br: brotliCompressSync(plain, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } }),
+    }
+    encodedFiles.set(target, entry)
+  }
+  return entry
+}
+
+/**
+ * Pick the strongest client-accepted encoding and its token.
+ * @returns the variant buffer and content-encoding value, or the plain body with no encoding.
+ */
+function negotiate(entry: EncodedFile, acceptEncoding: string | undefined): { body: Buffer; encoding?: string } {
+  const ae = acceptEncoding ?? ''
+  if (entry.br !== undefined && /\bbr\b/i.test(ae)) return { body: entry.br, encoding: 'br' }
+  if (entry.gzip !== undefined && /\bgzip\b/i.test(ae)) return { body: entry.gzip, encoding: 'gzip' }
+  return { body: entry.plain }
+}
+
 /**
  * Serve one GET/HEAD static request from the dist root.
  * @param pathname - decoded URL pathname of the request.
@@ -69,7 +116,7 @@ const STATIC_MISS_CODES: ReadonlySet<string | undefined> = new Set([
  * rendering) for the dist root and configured index path.
  */
 export async function serveStatic(
-  pathname: string, res: ServerResponse, distRoot: string, distIndex: string,
+  pathname: string, req: IncomingMessage, res: ServerResponse, distRoot: string, distIndex: string,
   authorizeIndex: () => boolean,
   renderIndex: () => Promise<string>,
 ): Promise<void> {
@@ -101,8 +148,31 @@ export async function serveStatic(
     res.end()
     return
   }
-  res.writeHead(200, { 'content-type': type })
-  res.end(body)
+  const entry = encodeFile(target, body)
+  if (req.headers['if-none-match'] === entry.etag) {
+    res.writeHead(304, { etag: entry.etag })
+    res.end()
+    return
+  }
+  const acceptEncoding = req.headers['accept-encoding']
+  const { body: payload, encoding } = negotiate(
+    entry,
+    typeof acceptEncoding === 'string' ? acceptEncoding : undefined,
+  )
+  // Hashed vite filenames are content-addressed → cache forever; everything
+  // else (index.html render, favicon, manifest) revalidates via etag.
+  const cacheControl = HASHED_ASSET.test(pathname) && target !== distIndex
+    ? 'public, max-age=31536000, immutable'
+    : 'no-cache'
+  res.writeHead(200, {
+    'content-type': type,
+    'content-length': payload.length,
+    'cache-control': cacheControl,
+    etag: entry.etag,
+    ...(encoding !== undefined ? { 'content-encoding': encoding } : {}),
+    vary: 'Accept-Encoding',
+  })
+  res.end(req.method === 'HEAD' ? undefined : payload)
 }
 
 /**
@@ -133,6 +203,7 @@ export function apply(ctx: Context, config: Config): void {
     const rawPath = new URL(req.url ?? '/', 'http://x').pathname
     await serveStatic(
       decodeURIComponent(rawPath),
+      req,
       res,
       distRoot,
       distIndex,
