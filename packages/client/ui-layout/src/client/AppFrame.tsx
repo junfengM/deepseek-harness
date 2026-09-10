@@ -26,8 +26,8 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-slots'
 import { FishLogo, isTouchPrimary } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
-  clampWidth, computeColumns, DRAWER_VIEWPORT, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO,
-  RIGHTBAR_MIN, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MAX,
+  clampWidth, computeColumns, DRAWER_VIEWPORT, RIGHTBAR_DEFAULT_RATIO,
+  SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MAX,
   SIDEBAR_MIN,
 } from './columns.ts'
 import { DocumentTitle } from './DocumentTitle.tsx'
@@ -246,10 +246,15 @@ export function AppFrame({
     clampWidth(layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : layoutInfo.sidebar, SIDEBAR_MIN, SIDEBAR_MAX),
     Math.max(viewport - SIDEBAR_COLLAPSED - 24, SIDEBAR_MIN),
   )
-  const rightbarDrawerWidth = Math.min(
-    clampWidth(rightbarPreference, RIGHTBAR_MIN, viewport * RIGHTBAR_MAX_RATIO),
-    Math.max(viewport - SIDEBAR_COLLAPSED - 24, RIGHTBAR_MIN),
-  )
+  // The right panel is never docked at drawer widths: ui-sidebar-right derives
+  // `autoFullscreen = viewportWidth < 768` (SidebarRight.tsx) and drawer mode
+  // starts below DRAWER_VIEWPORT = 700, so every right drawer hosts a panel that
+  // is `position: fixed` across the viewport. The drawer must therefore be that
+  // same viewport box: the old sliver clamp (274px on a 390px phone) made a host
+  // narrower than its own fullscreen child, and the fixed child resolving
+  // `inset: 0` against the drawer's transformed entry box clipped its left edge
+  // — a document lost its first ~116px (path start, body lines).
+  const rightbarDrawerWidth = viewport
   const colsRef = useRef(cols)
   colsRef.current = cols
   const rightbarWidth = useRef(normal.rightbar)

@@ -161,6 +161,18 @@
   box-shadow: -16px 0 48px rgba(0, 0, 0, 0.4);
 }
 
+/* The hosted right panel is `position: fixed; inset: 0` upstream (ui-sidebar-right
+   `.panel[data-sidebar-right-panel='fullscreen']`): sized to the viewport. That is
+   the drawer's own box only while no ancestor transform is in play — and this
+   drawer's entry animation is exactly such a transform, which makes the drawer the
+   fixed child's containing block and its `overflow: hidden` the clipper. The same
+   panel therefore laid out two ways (viewport-wide after the animation, clipped to
+   the drawer during it) and cut its own left edge in the second. Pin it to the
+   drawer: the drawer is the surface, and in fullscreen it is viewport-sized. */
+.drawerRight [data-sidebar-right-panel='fullscreen'][data-sidebar-right-open] {
+  position: absolute;
+}
+
 @keyframes drawer-in {
   from {
     transform: translateX(var(--drawer-from, -100%));
