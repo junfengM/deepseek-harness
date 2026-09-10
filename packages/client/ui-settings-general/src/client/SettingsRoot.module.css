@@ -234,3 +234,108 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Phone frames (< DRAWER_VIEWPORT, kept in sync with ui-layout): the desktop
+   panel is 800px with a fixed 188px rail, so on a 390px phone the content
+   column collapses to ~150px — narrower than the narrowest section content
+   (the agent-preset card grid's 268px minmax), which then overflows and is
+   clipped by the panel's own overflow:hidden.
+
+   The phone form is a full-height settings hub rather than a squeezed dialog:
+   - the rail becomes a 2x2 tile grid below the title row, so all four sections
+     stay visible instead of hiding behind a horizontal scroller (K-07);
+   - every target is >= 44px tall and carries an :active state (K-03);
+   - the sheet enters with the shared duration/easing tokens and drops the
+     motion under reduced-motion (K-04/K-05);
+   - the safe-area insets reserved by the viewport-fit=cover meta keep the
+     title row and the scrollable content clear of the notch and the home
+     indicator.
+   Desktop >= 700px is untouched. */
+@media (max-width: 699px) {
+  .panel {
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    border-radius: 0;
+    animation: settings-sheet-in var(--ds-transition-duration) var(--ds-ease-in-out);
+  }
+
+  .nav {
+    flex: none;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    padding: calc(env(safe-area-inset-top) + 8px) 0 10px;
+    box-sizing: border-box;
+    border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  }
+
+  .navTitle {
+    /* Right inset keeps the title clear of the floating close button. */
+    padding: 0 52px 8px 16px;
+  }
+
+  .navList {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 0 16px;
+  }
+
+  .navCell {
+    height: 44px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .navCell:active {
+    background: var(--dsw-alias-interactive-bg-active);
+  }
+
+  .navCell.active {
+    font-weight: 500;
+  }
+
+  .content {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Float the actions + close into the title row: the nav block already owns
+     the panel's top edge, so the header must not claim a second line. */
+  .header {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 4px);
+    right: 8px;
+    height: auto;
+    padding: 0;
+  }
+
+  .close {
+    width: 40px;
+    height: 40px;
+  }
+
+  .options {
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+}
+
+@keyframes settings-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+}
