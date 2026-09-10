@@ -1168,14 +1168,14 @@ export class ClientModuleRegistry extends Service {
     }
     const body = response.body
     const etag = `"${createHash('sha1').update(body).digest('hex')}"`
-    if (req.headers?.['if-none-match'] === etag) {
+    if (req.headers['if-none-match'] === etag) {
       res.writeHead(304, { etag })
       res.end()
       return
     }
     let payload: Buffer = body
     let encoding: string | undefined
-    const acceptEncoding = req.headers?.['accept-encoding']
+    const acceptEncoding = req.headers['accept-encoding']
     if (typeof acceptEncoding === 'string' && acceptEncoding.length > 0) {
       let memo = this.compressedBundles.get(`${url}:${etag}`)
       if (memo === undefined) {

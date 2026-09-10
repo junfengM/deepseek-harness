@@ -273,7 +273,7 @@ export class BrowserAuth {
       if (req.method === 'GET' && url.pathname === '/' && this.isAuthenticated(req)) {
         res.writeHead(303, {
           'cache-control': 'no-store',
-          'location': '/',
+          'location': './',
           'referrer-policy': 'no-referrer',
         })
         res.end()
