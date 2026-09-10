@@ -163,6 +163,11 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   const [candidates, setCandidates] = useState<readonly LlmDiscoveredModel[] | undefined>(undefined)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [candidateQuery, setCandidateQuery] = useState('')
+  // Text filtering the CONFIGURED rows below (the fetch candidates keep their
+  // own search inside the picker dialog). Position-keyed row state — expanded
+  // disclosures, capacity buffers — stays indexed by the row's real position,
+  // so filtering only hides rows via `hidden`, never reorders them.
+  const [rowQuery, setRowQuery] = useState('')
   // Rows carry an id and a name; capacities are the exception, so they stay
   // folded until asked for rather than crowding every row with four inputs.
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set())
@@ -209,7 +214,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     })
   }
 
-  const patch = (index: number, next: Record<string, string | number | undefined>): void => {
+  const patch = (index: number, next: Record<string, string | number | boolean | undefined>): void => {
     onChange(models.map((model, at) => {
       if (at !== index) return model
       // Rebuilt rather than spread over: an emptied optional field has to leave
@@ -306,6 +311,34 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     })
   }
 
+  // Bulk visibility management for the CONFIGURED rows. Showing or hiding
+  // every row at once doubles as the provider-level switch: a route whose
+  // rows are all withheld registers no models, so it leaves the pickers
+  // without any row being deleted. "On" is spelled by dropping the field
+  // (an enabled row reads identically to one never touched); only `false`
+  // withholds.
+  const shownCount = models.filter(model => model.enabled !== false).length
+  const rowQueryText = rowQuery.trim().toLowerCase()
+  const rowMatches = (model: ModelDraft): boolean => rowQueryText.length === 0
+    || textOf(model, 'id').toLowerCase().includes(rowQueryText)
+    || textOf(model, 'name').toLowerCase().includes(rowQueryText)
+  const filteredOut = models.length > 0 && models.every(model => !rowMatches(model))
+
+  const showAllModels = (): void => {
+    onChange(models.map((model) => {
+      if (model.enabled === undefined) return model
+      return Object.fromEntries(Object.entries(model).filter(([key]) => key !== 'enabled'))
+    }))
+  }
+
+  const hideAllModels = (): void => {
+    onChange(models.map(model => ({ ...model, enabled: false })))
+  }
+
+  const visibleCountText = t('modelVisibleCount')
+    .replace('{shown}', String(shownCount))
+    .replace('{total}', String(models.length))
+
   // A route the adapter already describes answers without an endpoint; only a
   // draft with neither has nothing to ask about.
   const askable = probe.provider !== undefined || (probe.baseURL !== undefined && probe.baseURL.length > 0)
@@ -346,10 +379,69 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           {busy ? t('fetching') : t('fetchModels')}
         </button>
       </div>
+      <div className={styles['modelManageBar']}>
+        <span className={styles['modelVisibleCount']}>{visibleCountText}</span>
+        <span className={styles['modelManageActions']}>
+          <button
+            type="button"
+            className={styles['linkButton']}
+            disabled={disabled || models.length === 0 || shownCount === models.length}
+            onClick={showAllModels}
+          >
+            {t('modelShowAll')}
+          </button>
+          <button
+            type="button"
+            className={styles['linkButton']}
+            disabled={disabled || models.length === 0 || shownCount === 0}
+            onClick={hideAllModels}
+          >
+            {t('modelHideAll')}
+          </button>
+        </span>
+      </div>
+      {models.length === 0
+        ? null
+        : (
+          <input
+            className={`${styles['input']} ${styles['modelFilterInput']}`}
+            type="search"
+            value={rowQuery}
+            placeholder={t('modelFilter')}
+            aria-label={t('modelFilter')}
+            disabled={disabled}
+            onChange={(event) => { setRowQuery(event.target.value) }}
+          />
+        )}
       {models.length === 0 ? <p className={styles['modelEmpty']}>{t('modelsEmpty')}</p> : null}
       {models.map((model, index) => (
-        <div key={index} className={styles['modelEntry']}>
+        // A filtered-out row keeps its position — expanded disclosures and
+        // capacity buffers are keyed by it — and is only hidden, never moved.
+        <div
+          key={index}
+          hidden={!rowMatches(model)}
+          className={model.enabled === false
+            ? `${styles['modelEntry']} ${styles['modelEntryDisabled']}`
+            : styles['modelEntry']}
+        >
           <div className={styles['modelRow']}>
+            <button
+              type="button"
+              role="switch"
+              className={styles['modelToggle']}
+              aria-checked={model.enabled !== false}
+              aria-label={`${t('modelToggle')} ${index + 1}`}
+              title={t('modelToggle')}
+              disabled={disabled}
+              onClick={() => {
+                // On: the field leaves the profile entirely, so an enabled row
+                // reads identically to one never touched; off stores the only
+                // value that means withheld.
+                patch(index, { enabled: model.enabled === false ? undefined : false })
+              }}
+            >
+              <span className={styles['modelToggleKnob']} />
+            </button>
             <input
               className={styles['input']}
               type="text"
@@ -438,6 +530,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
             : null}
         </div>
       ))}
+      {filteredOut ? <p className={styles['modelEmpty']} role="status">{t('modelNoFilterMatches')}</p> : null}
       <button
         type="button"
         className={styles['addModelButton']}
