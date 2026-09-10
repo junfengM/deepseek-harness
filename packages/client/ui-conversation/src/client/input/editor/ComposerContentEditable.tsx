@@ -8,7 +8,9 @@
  */
 import { useLayoutEffect, useRef } from 'react'
 import type { HTMLAttributes, ReactNode } from 'react'
+import { $setSelection } from 'lexical'
 import type { LexicalEditor } from 'lexical'
+import { isTouchPrimary } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Host props: the editor binding plus the div passthroughs the bar owns. */
 export interface ComposerContentEditableProps extends HTMLAttributes<HTMLDivElement> {
@@ -28,6 +30,18 @@ export function ComposerContentEditable({ editor, editable, ...rest }: ComposerC
   useLayoutEffect(() => {
     const el = ref.current
     if (editor === null || el === null) return
+    // Touch-primary devices: a previously interacted session's saved editor
+    // state carries a non-null RangeSelection. setRootElement below commits
+    // that state, and Lexical's $updateDOMSelection FOCUSES the root element
+    // whenever it restores a selection into an unfocused editable — a session
+    // switch from the sidebar would pop the on-screen keyboard over the
+    // conversation the user just navigated to. Drop the saved selection right
+    // before binding (null-root update: state-only commit, no DOM work) so
+    // the bind has nothing to restore. Desktop keeps the selection: its
+    // unlock effect intentionally re-focuses the composer on session switch.
+    if (isTouchPrimary()) {
+      editor.update(() => { $setSelection(null) }, { discrete: true })
+    }
     editor.setRootElement(el)
     return () => { editor.setRootElement(null) }
   }, [editor])

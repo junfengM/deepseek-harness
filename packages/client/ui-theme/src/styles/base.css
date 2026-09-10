@@ -13,3 +13,27 @@
   --ds-transition-duration-fast: 0.1s;
   --ds-transition-duration-slow: 0.3s;
 }
+
+/* Mobile touch + zoom discipline (phones/tablets): `manipulation` keeps
+   pan + pinch-zoom working while killing the double-tap-to-zoom gesture
+   that magnifies the whole page when a sidebar row is tapped twice in a
+   row. text-size-adjust stops mobile browsers from inflating small text
+   on orientation change; tap highlight is cleared on buttons because the
+   rows/cells already paint their own hover/selected fill. Desktop is
+   unaffected (no double-tap gesture there). */
+html,
+body {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* The shell is a fixed-height app frame (html/body/#root at 100%, columns
+     clip overflow), so the document has nothing to scroll — but iOS WebKit
+     still rubber-bands the whole page unless this is set (the "entire window
+     moves with my thumb while the content stays put" report on phones). */
+  overscroll-behavior: none;
+}
+
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}

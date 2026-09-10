@@ -10,6 +10,10 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Keep touch pans inside the transcript: at the top/bottom edge the pan
+     would otherwise chain to the document, which rubber-bands the whole
+     window on iOS (no document scroll to absorb it). */
+  overscroll-behavior: contain;
   /* Sides = composer clearance + 16px: on narrow viewports the transcript
      stays exactly 32px narrower than the input card (the shared width rule). */
   padding: 16px calc(var(--dsh-composer-side-clearance) + 16px);

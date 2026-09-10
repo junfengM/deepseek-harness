@@ -7,6 +7,9 @@
   padding: 0 8px;
   cursor: pointer;
   user-select: none;
+  /* No double-tap zoom on rapid row taps; the row click still fires. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   color: var(--dsw-alias-label-primary);
 }
 
@@ -145,10 +148,16 @@
 }
 
 
-/* Project leading slot: folder by default, expand arrow on row hover. */
+/* Project leading slot: folder by default, expand arrow on row hover.
+   Hover-only swaps live behind (hover: hover): a touch tap fires the
+   emulated hover first, and content changing under the finger makes iOS
+   consume the tap as hover — the click never fires (the phone symptom of
+   "one tap does nothing, two taps zoom"). Touch keeps the folder glyph. */
 .projectRow .chevron { display: none; }
-.projectRow:hover .chevron { display: inline-flex; }
-.projectRow:hover .folder { display: none; }
+@media (hover: hover) {
+  .projectRow:hover .chevron { display: inline-flex; }
+  .projectRow:hover .folder { display: none; }
+}
 
 /* Expand arrow (filled triangle): points right closed, rotates to point down open. */
 .arrow {
@@ -229,7 +238,10 @@
 }
 
 /* Trailing action buttons surface on hover only (figma 27:4668 / 27:4656):
-   bare 16px glyphs, gap 12, tertiary grey. */
+   bare 16px glyphs, gap 12, tertiary grey. Hover reveal lives behind
+   (hover: hover): on touch the emulated hover both consumes the opening
+   tap and would leave the row verbs unreachable between taps, so touch
+   keeps the actions visible and the timestamp in place. */
 .rowActions {
   flex: none;
   display: none;
@@ -237,14 +249,23 @@
   gap: 12px;
 }
 
-.projectRow:hover .rowActions,
-.sessionRow:hover .rowActions,
+@media (hover: hover) {
+  .projectRow:hover .rowActions,
+  .sessionRow:hover .rowActions {
+    display: inline-flex;
+  }
+
+  .sessionRow:hover .time {
+    display: none;
+  }
+}
+
+/* An open row menu pins the affordances regardless of pointer kind. */
 .projectRow.menuOpen .rowActions,
 .sessionRow.menuOpen .rowActions {
   display: inline-flex;
 }
 
-.sessionRow:hover .time,
 .sessionRow.menuOpen .time {
   display: none;
 }
@@ -364,5 +385,32 @@
   .arrow {
     animation: none;
     transition: none;
+  }
+}
+
+/* Phone frames (< DRAWER_VIEWPORT): 32/34px desktop rows are below the ~44px
+   minimum comfortable touch target, so taps near a row edge land on the gap
+   and feel like "one tap does nothing". Touch rows get a 40px floor (a
+   middle ground: roomier than desktop, tighter than the 44px first pass)
+   with a little extra side padding; the title/time typography is unchanged.
+   The rename field is a real text input, so it also takes the 16px iOS
+   focus-zoom floor (same reason as the composer surface). */
+@media (max-width: 699px) {
+  .projectRow,
+  .sessionRow {
+    /* min-height alone raises the phone row: it wins over the desktop height
+       (34/32px) without overriding the declaration the style contract reads. */
+    min-height: 40px;
+    padding: 4px 12px;
+  }
+
+  .sessionRow .title {
+    line-height: 22px;
+  }
+
+  .renameInput {
+    font-size: 16px;
+    line-height: 22px;
+    padding: 6px 8px;
   }
 }

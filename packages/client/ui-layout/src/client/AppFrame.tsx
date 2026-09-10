@@ -24,7 +24,7 @@ import type { ReactNode } from 'react'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import { FishLogo } from '@deepseek-ai/dsh-client-ui-primitives'
+import { FishLogo, isTouchPrimary } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   clampWidth, computeColumns, DRAWER_VIEWPORT, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO,
   RIGHTBAR_MIN, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MAX,
@@ -167,6 +167,55 @@ export function AppFrame({
     }
   }, [actions])
 
+  // Touch devices: PIN the frame to the visual viewport. Chrome iOS toggles
+  // between avoidance strategies mid-typing — resizing the layout viewport in
+  // stages (on-device: 669→512→329→305 for the SAME keyboard), freezing
+  // halfway, overlaying, or panning — and every classification/padding
+  // scheme (v1–v10) ended up fighting one of those stages. Instead of
+  // adapting to the strategy, this removes the strategy's effect: the frame
+  // is fixed, sized to vv.height and translated to vv.offsetTop, so the app
+  // always occupies EXACTLY the visible band. The composer (docked at the
+  // frame's bottom) is then glued just above the keyboard through every
+  // stage change; there is no page scroll to fight and no pad to invalidate.
+  // Desktop (hover-capable) keeps the static in-flow layout.
+  useEffect(() => {
+    if (!isTouchPrimary()) return
+    const vv = window.visualViewport
+    const el = frameRef.current
+    if (vv === null || el === null) return
+    const apply = (): void => {
+      el.style.position = 'fixed'
+      el.style.top = '0'
+      el.style.left = '0'
+      el.style.right = '0'
+      el.style.height = `${Math.round(vv.height)}px`
+      el.style.transform = `translateY(${Math.round(vv.offsetTop)}px)`
+    }
+    apply()
+    // Events miss some of this engine's stage changes (innerHeight moved
+    // with no vv resize on-device), so a cheap interval keeps the pin exact.
+    vv.addEventListener('resize', apply)
+    vv.addEventListener('scroll', apply)
+    const tick = window.setInterval(apply, 200)
+    return () => {
+      vv.removeEventListener('resize', apply)
+      vv.removeEventListener('scroll', apply)
+      window.clearInterval(tick)
+      el.style.position = ''
+      el.style.top = ''
+      el.style.left = ''
+      el.style.right = ''
+      el.style.height = ''
+      el.style.transform = ''
+    }
+  }, [])
+
+  // Narrow viewports auto-collapse the sidebar; the store mirror keeps
+  // toggleSidebar's semantics right (narrow toggles flip the manual
+  // re-expand override, stores.ts). Collapsed is decided here, so the
+  // solver stays breakpoint-free: a narrow re-expand passes the preference
+  // (or the default when the wide preference is closed) and the center
+  // absorbs the squeeze.
   const narrow = viewport < SIDEBAR_AUTO_COLLAPSE
   const sidebarCollapsed = narrow ? !layoutInfo.narrowExpanded : layoutInfo.sidebar === 0
   const sidebarPreference = sidebarCollapsed
@@ -291,7 +340,7 @@ export function AppFrame({
       {drawerMode && !sidebarDrawerOpen && (
         <button
           className={css.drawerToggle}
-          aria-label="打开侧边栏"
+          aria-label={t('sidebar.open')}
           onClick={() => { actions.toggleSidebar() }}
         >
           <FishLogo size={20} />

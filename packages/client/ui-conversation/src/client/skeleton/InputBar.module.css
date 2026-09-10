@@ -384,3 +384,15 @@
   font-size: 12px;
   cursor: pointer;
 }
+
+/* Phone frames (< DRAWER_VIEWPORT, kept in sync with ui-layout): the draft
+   surface must stay at >= 16px — iOS Safari auto-zooms the whole page into
+   any focused editable below 16px and leaves it zoomed, forcing the user to
+   pinch back after every input. The Settings font-size preference still
+   applies on desktop; on phones it is floored at 16px. The card owns the
+   font-size (the surface inherits), so the floor lives here. */
+@media (max-width: 699px) {
+  .card {
+    font-size: max(16px, var(--dsh-content-font-size, 14px));
+  }
+}
