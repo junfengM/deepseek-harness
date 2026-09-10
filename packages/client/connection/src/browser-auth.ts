@@ -17,11 +17,12 @@ const COOKIE_PREFIX = 'dsh-auth-'
 const COOKIE_PAYLOAD_VERSION = 1
 const STORED_SECRET_VERSION = 1
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]*$/
-const PROCESS_LAUNCH_TOKENS = new WeakMap<object, string>()
 
 interface StoredSecretPayload {
   readonly version: typeof STORED_SECRET_VERSION
   readonly secret: string
+  /** Durable launch token retained across Web process restarts. */
+  readonly launchToken?: string
 }
 
 interface BrowserCookiePayload {
@@ -49,12 +50,11 @@ function decodeBase64Url(value: string): Buffer | undefined {
   return encodeBase64Url(decoded) === value ? decoded : undefined
 }
 
-function processLaunchToken(owner: object): string {
-  const existing = PROCESS_LAUNCH_TOKENS.get(owner)
-  if (existing !== undefined) return existing
-  const created = encodeBase64Url(randomBytes(SECRET_BYTES))
-  PROCESS_LAUNCH_TOKENS.set(owner, created)
-  return created
+/** Validate the durable bearer token stored with the browser-session grant. */
+function canonicalLaunchToken(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const decoded = decodeBase64Url(value)
+  return decoded?.byteLength === SECRET_BYTES ? value : undefined
 }
 
 function header(
@@ -158,23 +158,47 @@ function decodeCookie(value: string, secret: Buffer): BrowserCookiePayload | und
   return decoded as unknown as BrowserCookiePayload
 }
 
-async function initializeSecret(credentials: CredentialProvider): Promise<Buffer> {
+interface InitializedAuth {
+  readonly secret: Buffer
+  readonly launchToken: string
+}
+
+/** Load the durable signing secret and launch token, migrating old records once. */
+async function initializeAuth(credentials: CredentialProvider): Promise<InitializedAuth> {
   const generated: StoredSecretPayload = {
     version: STORED_SECRET_VERSION,
     secret: encodeBase64Url(randomBytes(SECRET_BYTES)),
+    launchToken: encodeBase64Url(randomBytes(SECRET_BYTES)),
   }
   const record = await credentials.modifyRecord(AUTH_RECORD_KEY, (current) => {
-    if (current !== undefined) {
-      storedSecret(current)
+    if (current === undefined) return Promise.resolve({ kind: 'grant', payload: generated })
+    const payload = current.kind === 'grant' && isRecord(current.payload)
+      ? current.payload
+      : undefined
+    const secret = storedSecret(current)
+    if (secret === undefined) {
+      throw new Error('client-connection: browser-session credential record has no secret')
+    }
+    if (payload !== undefined && Object.hasOwn(payload, 'launchToken')) {
+      if (canonicalLaunchToken(payload.launchToken) === undefined) {
+        throw new Error('client-connection: browser-session credential record has an invalid launch token')
+      }
       return Promise.resolve(undefined)
     }
-    return Promise.resolve({ kind: 'grant', payload: generated })
+    return Promise.resolve({
+      ...current,
+      payload: { ...payload, version: STORED_SECRET_VERSION, secret: encodeBase64Url(secret), launchToken: generated.launchToken },
+    })
   })
-  const secret = storedSecret(record)
-  if (secret === undefined) {
+  if (record === undefined || record.kind !== 'grant' || !isRecord(record.payload)) {
     throw new Error('client-connection: browser-session credential record was not created')
   }
-  return secret
+  const secret = storedSecret(record)
+  const launchToken = canonicalLaunchToken(record.payload.launchToken)
+  if (secret === undefined || launchToken === undefined) {
+    throw new Error('client-connection: browser-session credential record has no launch token')
+  }
+  return { secret, launchToken }
 }
 
 /**
@@ -187,11 +211,11 @@ export class BrowserAuth {
   private readonly maxAgeMilliseconds: number
 
   private constructor(
-    processOwner: object,
+    launchToken: string,
     private readonly secret: Buffer,
     maxAgeDays: number,
   ) {
-    this.launchToken = processLaunchToken(processOwner)
+    this.launchToken = launchToken
     this.maxAgeMilliseconds = maxAgeDays * DAY_MILLISECONDS
     if (!Number.isSafeInteger(this.maxAgeMilliseconds)
       || !Number.isSafeInteger(Date.now() + this.maxAgeMilliseconds)) {
@@ -212,7 +236,9 @@ export class BrowserAuth {
     credentials: CredentialProvider,
     maxAgeDays: number,
   ): Promise<BrowserAuth> {
-    return new BrowserAuth(processOwner, await initializeSecret(credentials), maxAgeDays)
+    void processOwner
+    const initialized = await initializeAuth(credentials)
+    return new BrowserAuth(initialized.launchToken, initialized.secret, maxAgeDays)
   }
 
   /**
@@ -243,6 +269,18 @@ export class BrowserAuth {
     const tokens = url.searchParams.getAll(TOKEN_QUERY)
     if (tokens.length > 0) {
       const authority = requestAuthority(req.headers)
+      // A browser that already has the authority-bound cookie may revisit a
+      // stale launch URL after a restart. Redirect without minting a second
+      // cookie; token exchange is only needed for a new browser/authority.
+      if (req.method === 'GET' && url.pathname === '/' && this.isAuthenticated(req)) {
+        res.writeHead(303, {
+          'cache-control': 'no-store',
+          'location': '/',
+          'referrer-policy': 'no-referrer',
+        })
+        res.end()
+        return false
+      }
       if (req.method === 'GET' && url.pathname === '/' && tokens.length === 1
         && authority !== undefined && tokenMatches(tokens.join(''), this.launchToken)) {
         const issuedAt = Date.now()
@@ -260,15 +298,6 @@ export class BrowserAuth {
           'set-cookie': sessionCookie(
             cookieName(authority), value, expiresAt, Math.floor(this.maxAgeMilliseconds / 1000),
           ),
-        })
-        res.end()
-        return false
-      }
-      if (req.method === 'GET' && url.pathname === '/' && this.isAuthenticated(req)) {
-        res.writeHead(303, {
-          'cache-control': 'no-store',
-          'location': '/',
-          'referrer-policy': 'no-referrer',
         })
         res.end()
         return false
