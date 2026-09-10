@@ -159,6 +159,14 @@
   right: 0;
   border-left: 0.5px solid var(--dsw-alias-border-l3);
   box-shadow: -16px 0 48px rgba(0, 0, 0, 0.4);
+  /* No entry animation of its own: the panel inside has already slid in by the
+     time this drawer mounts. ui-sidebar-right defers its "covered the frame"
+     report until that slide finishes (SidebarRight.tsx `reportWhenCovered`), so
+     the click animates the panel first (measured: transform 390→0 across
+     0–256ms with the drawer still unmounted) and only then mounts the drawer —
+     replaying the entry here slid the same content a second time (272–464ms).
+     The drawer is a static shell for the panel's own slide. */
+  animation: none;
 }
 
 /* The hosted right panel is `position: fixed; inset: 0` upstream (ui-sidebar-right
