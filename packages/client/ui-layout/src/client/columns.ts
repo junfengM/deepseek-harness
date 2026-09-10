@@ -21,6 +21,14 @@ export const SIDEBAR_COLLAPSED = 56
  * LG breakpoint); a manual toggle below it re-expands over the squeezed center
  * (stores.ts narrowExpanded). */
 export const SIDEBAR_AUTO_COLLAPSE = 1024
+/**
+ * Viewport width below which panels render as overlay drawers instead of grid
+ * tracks (AppFrame). Below it the concession chain cannot help: an expanded
+ * sidebar would squeeze the center column to a sliver (a 390px phone leaves
+ * ~110px), and the right panel can never fit RIGHTBAR_MIN next to CENTER_MIN,
+ * so it is unreachable. Drawers float over the conversation instead.
+ */
+export const DRAWER_VIEWPORT = 700
 /** Right column drag clamp floor. */
 export const RIGHTBAR_MIN = 300
 /** Maximum normal right panel width as a fraction of the frame. */
