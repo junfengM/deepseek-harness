@@ -34,6 +34,12 @@ interface ModelRowProps {
   onChange: (model: DeepSeekModelDraft) => void
   onToggle: () => void
   onRemove: () => void
+  /** Filtered-out row: hidden in place so position-keyed state stays aligned. */
+  hidden?: boolean
+  /** Withheld row (`enabled: false`): muted styling, fields stay editable. */
+  withheld?: boolean
+  /** Visibility switch rendered ahead of the fields; absent when the editor has no `enabled` drafts. */
+  visibleToggle?: { checked: boolean; label: string; onChange: () => void }
 }
 
 /**
@@ -44,8 +50,25 @@ interface ModelRowProps {
 export function ModelRow(props: ModelRowProps): ReactNode {
   const { model, position, t, disabled } = props
   return (
-    <div className={styles['modelEntry']}>
+    <div
+      className={props.withheld === true ? `${styles['modelEntry']} ${styles['modelEntryDisabled']}` : styles['modelEntry']}
+      hidden={props.hidden === true || undefined}
+    >
       <div className={styles['modelRow']}>
+        {props.visibleToggle === undefined ? null : (
+          <button
+            type="button"
+            role="switch"
+            className={styles['modelToggle']}
+            aria-checked={props.visibleToggle.checked}
+            aria-label={props.visibleToggle.label}
+            title={props.visibleToggle.label}
+            disabled={disabled}
+            onClick={props.visibleToggle.onChange}
+          >
+            <span className={styles['modelToggleKnob']} />
+          </button>
+        )}
         {(['id', 'name'] as const).map(field => (
           <input
             key={field}
