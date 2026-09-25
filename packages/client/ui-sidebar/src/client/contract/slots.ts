@@ -5,7 +5,8 @@
  * everything between the workspace section header and the list bottom is the
  * `sidebar.workspaces` registrant's (ui-workspace), and the foot is the
  * `sidebar.settings` registrant's (ui-settings), followed by optional footer
- * actions in `sidebar.footer.action`.
+ * actions in `sidebar.footer.action` and the shell-owned plugin area fed by
+ * `sidebar.plugin`.
  */
 import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
@@ -46,8 +47,25 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /**
      * Optional actions beside Settings at the sidebar foot. Declared by this
      * package's 'sidebar' entry; each action receives only the column state.
+     *
+     * This is NOT the plugin channel: the shell renders these at full column
+     * width with no pinning and no overflow, so a plugin that needs pinning,
+     * ordering, or a status glyph registers into `sidebar.plugin` instead.
      */
     'sidebar.footer.action': { kind: 'list'; scope: 'root'; owner: SidebarFooterActionOwnerProps }
+    /**
+     * Plugin entries for the sidebar plugin area. The shell owns the button
+     * geometry, the pin list, the overflow menu, and every glyph; a
+     * registration contributes metadata (registration.icon / .group / .open /
+     * .hasStatus) plus a component that paints ONLY its own status glyph and
+     * exposes its value as readable text or an aria-label.
+     * Declared by this package's 'sidebar' entry.
+     */
+    'sidebar.plugin': {
+      kind: 'list'; scope: 'root'; owner: SidebarPluginOwnerProps; registration: SidebarPluginRegistration
+    }
+    /** Optional settings-owned management action in the plugin overflow footer. */
+    'sidebar.plugin.manage': { kind: 'single'; scope: 'root' }
   }
 }
 
@@ -108,6 +126,79 @@ export interface SidebarFooterActionOwnerProps {
 }
 
 /**
+ * Icon name a plugin entry may declare. Names, never markup: the shell maps
+ * each to a shipped glyph, which is what keeps one column in one visual
+ * language. Add a name here (and to the shell's map) rather than accepting an
+ * inline SVG from a registrant.
+ */
+export type SidebarPluginIcon =
+  | 'plugin'
+  | 'radar'
+  | 'image'
+  | 'database'
+  | 'sparkle'
+  | 'code'
+  | 'data'
+  | 'gauge'
+  | 'goal'
+  | 'skill'
+  | 'search'
+
+/** Per-registration plugin metadata, nested under `registration` in the register call. */
+export interface SidebarPluginRegistration {
+  /** Built-in icon name; defaults to 'plugin'. */
+  icon?: SidebarPluginIcon
+  /** Menu grouping heading; '' collects under the trailing heading. */
+  group?: string
+  /**
+   * Invoked when the shell activates this entry (its pinned button or its menu
+   * row). Synchronous on purpose: a plugin that needs async work kicks it off
+   * inside the callback, and the shell never awaits a registrant.
+   */
+  open?: () => void
+  /**
+   * Declares that this entry paints a status glyph. The shell renders it in a
+   * fixed seat in both pinned and menu rows; the seat does not participate in
+   * fit width, so a status that appears later cannot invalidate the fit.
+   */
+  hasStatus?: boolean
+}
+
+/**
+ * Owner share of a plugin entry: the column state its status component
+ * renders against. The component paints ONLY its own glyph — the shell owns
+ * the button, icon, label, and geometry. It must expose the status value to
+ * assistive technology with readable text or an `aria-label`; a decorative-only
+ * dot is not sufficient.
+ */
+export interface SidebarPluginOwnerProps {
+  /** Whether the sidebar renders wide content (false = 56px rail). */
+  wide: boolean
+  /** Requested square edge in pixels for the entry's status glyph. */
+  size: number
+  /** Whether this entry is currently pinned outside the menu. */
+  pinned: boolean
+}
+
+/** Serializable metadata the shell projects from one live plugin registration. */
+export interface SidebarPluginMetadata {
+  /** List id; also the persisted pin identity. */
+  id: string
+  /** Ascending entry order; ties retain registration order. */
+  order: number
+  /** Menu row title and accessible name (resolved label, or the id when omitted). */
+  label: string
+  /** Shell-owned glyph name. */
+  icon: SidebarPluginIcon
+  /** Menu grouping heading; '' groups under the trailing heading. */
+  group: string
+  /** Whether the entry renders a status glyph in the fixed pinned/menu seat. */
+  hasStatus: boolean
+  /** Activation callback from the registration; in-memory only, never persisted. */
+  open?: (() => void) | undefined
+}
+
+/**
  * Registrant-private injected share (arrives via the register inject
  * factory). The renderer binds the panel metadata source to usePanels.
  */
@@ -122,8 +213,16 @@ export type SidebarRootInjected = {
   toggleSidebar: () => void
   /** Select the global panel addressed by a sidebar row. */
   selectPanel: (id: MainPanelId) => void
+  /** Pin or unpin one plugin entry. Pins are user state, not registration state. */
+  togglePluginPin: (id: string) => void
   /** Private reactive sources bound to framework selector hooks. */
-  hooks: { panels: ObservableSnapshot<readonly SidebarPanelMetadata[]> }
+  hooks: {
+    panels: ObservableSnapshot<readonly SidebarPanelMetadata[]>
+    /** Live plugin entries, ascending by order. */
+    plugins: ObservableSnapshot<readonly SidebarPluginMetadata[]>
+    /** User pin list; unknown ids are kept so a late-loaded plugin returns pinned. */
+    pluginPins: ObservableSnapshot<readonly string[]>
+  }
 }
 
 /**
@@ -140,5 +239,7 @@ export type SidebarRootComponentProps =
     | 'sidebar.workspaces'
     | 'sidebar.settings'
     | 'sidebar.footer.action'
+    | 'sidebar.plugin'
+    | 'sidebar.plugin.manage'
   >
   & InjectFace<SidebarRootInjected> & PropsLocale<'sidebar'>

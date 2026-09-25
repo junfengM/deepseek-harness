@@ -61,6 +61,8 @@ function mount({
   let currentConnectionState = connectionState
   const listeners = new Set<() => void>()
   const connectionListeners = new Set<() => void>()
+  const openRequestListeners = new Set<() => void>()
+  let currentOpenRequest = 0
   const reconnect = vi.fn()
   const renderSlot = vi.fn(
     ((key: string, _owner: unknown, opts?: { only?: string }) => {
@@ -84,6 +86,15 @@ function mount({
     wide,
     reconnect,
     t: makeTranslate(dictionary),
+    useOpenRequest: (select) => {
+      const [, force] = useState(0)
+      useEffect(() => {
+        const listener = () => { force(n => n + 1) }
+        openRequestListeners.add(listener)
+        return () => { openRequestListeners.delete(listener) }
+      }, [])
+      return select(currentOpenRequest)
+    },
     useConnectionState: (select) => {
       const [, force] = useState(0)
       useEffect(() => {
@@ -118,7 +129,13 @@ function mount({
       for (const fn of [...connectionListeners]) fn()
     })
   }
-  return { view, renderSlot, bump, listeners, reconnect, setConnectionState }
+  const requestOpen = () => {
+    act(() => {
+      currentOpenRequest += 1
+      for (const fn of [...openRequestListeners]) fn()
+    })
+  }
+  return { view, renderSlot, bump, listeners, reconnect, setConnectionState, requestOpen }
 }
 
 function openPanel() {
@@ -146,6 +163,22 @@ describe('SettingsRoot trigger', () => {
     fireEvent.click(trigger, { detail: 0 })
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.getByRole('button', { name, expanded: true })).toBeTruthy()
+  })
+
+  it('opens the plugin settings section from an external menu request', async () => {
+    const mounted = mount({ rows: [
+      { id: 'general', order: 0, label: 'General' },
+      { id: 'plugins', order: 15, label: 'Plugins' },
+    ] })
+    mounted.requestOpen()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    await vi.waitFor(() => {
+      expect(mounted.renderSlot).toHaveBeenCalledWith(
+        'settings.section',
+        { close: expect.any(Function) },
+        { only: 'plugins' },
+      )
+    })
   })
 
   it('shows outage, retry progress, and a two-second recovery confirmation', () => {

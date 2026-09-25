@@ -1,0 +1,29 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.client.tsbuildinfo"
+  },
+  "files": [
+    "src/types.ts",
+    "src/client/index.ts",
+    "src/client/model.ts",
+    "src/client/service.ts",
+    "src/client/shell.tsx"
+  ],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../api/gateway/tsconfig.client.json" },
+    { "path": "../../api/session-controller/tsconfig.client.json" },
+    { "path": "../../client/connection/tsconfig.client.json" },
+    { "path": "../../client/store" },
+    { "path": "../../client/ui-layout" },
+    { "path": "../../client/ui-renderer" },
+    { "path": "../../client/ui-sidebar" },
+    { "path": "../../client/ui-slots" },
+    { "path": "../../core/session" },
+    { "path": "../../typert/protocol" },
+    { "path": "../../util/brand" }
+  ]
+}

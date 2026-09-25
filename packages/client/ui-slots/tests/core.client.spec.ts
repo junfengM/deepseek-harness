@@ -145,6 +145,14 @@ describe('kind semantics', () => {
     expect(core.entries('test.list').map(e => e.options.id)).toEqual(['a', 'b', 'c'])
   })
 
+  it('keeps owner registration metadata on the stored entry', () => {
+    const core = new SlotCore()
+    mountFrame(core)
+    const registration = { icon: 'radar', group: 'Content', open: vi.fn() }
+    core.register({ name: 'test.list', id: 'plugin', registration } as never, Comp)
+    expect(core.entries('test.list')[0]?.options.registration).toBe(registration)
+  })
+
   it('chain: missing select throws; select and priority land on the stored entry', () => {
     const core = new SlotCore()
     mountFrame(core)

@@ -36,6 +36,7 @@ const FILE_REFERENCE_PROMPT = fileURLToPath(new URL(
 const EXPECTED_TOOLS = [
   'ask_user_question',
   'bash',
+  'create_design_session',
   'create_goal',
   'edit',
   'exit_plan_mode',
@@ -74,6 +75,14 @@ let scaffold: WebScaffold | undefined
 afterEach(async () => {
   await scaffold?.close()
   scaffold = undefined
+})
+
+it('ships standard-preset tools through the Web bundle dependency closure', () => {
+  const manifestPath = fileURLToPath(new URL('../../../packages/bundle/web-app/package.json', import.meta.url))
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    dependencies: Record<string, string>
+  }
+  expect(manifest.dependencies['@deepseek-ai/dsh-tool-design-workbench']).toBe('workspace:^')
 })
 
 it('assembles the shipped Web transport, catalog, guidance, and defaults', async () => {

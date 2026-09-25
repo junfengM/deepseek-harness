@@ -142,7 +142,7 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
  */
 export function SettingsRoot(props: SettingsRootComponentProps) {
   const {
-    wide, reconnect, useConnectionState, useSections, useOnboardingSteps, useSessions, renderSlot, t,
+    wide, reconnect, useConnectionState, useOpenRequest, useSections, useOnboardingSteps, useSessions, renderSlot, t,
   } = props
   const [open, setOpen] = useState(false)
   const [activeId, setActiveId] = useState<string | undefined>(undefined)
@@ -150,10 +150,18 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   const [showRecovery, setShowRecovery] = useState(false)
   const triggerButton = useRef<HTMLButtonElement | null>(null)
   const wasOpen = useRef(open)
+  const openRequest = useOpenRequest(snapshot => snapshot)
+  const previousOpenRequest = useRef(openRequest)
   const close = useCallback(() => {
     setOpen(false)
     setActiveId(undefined)
   }, [])
+  useEffect(() => {
+    if (openRequest === previousOpenRequest.current) return
+    previousOpenRequest.current = openRequest
+    setActiveId('plugins')
+    setOpen(true)
+  }, [openRequest])
   // Restore after the close commit, when the dialog can no longer own focus.
   useEffect(() => {
     if (wasOpen.current && !open) triggerButton.current?.focus()

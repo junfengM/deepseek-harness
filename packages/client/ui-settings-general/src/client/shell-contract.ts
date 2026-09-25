@@ -40,6 +40,8 @@ export type SettingsRootInjected = {
   hooks: {
     /** Connection-owned state for the current Host connection. */
     connectionState: HostObservable<ConnectionState | undefined>
+    /** Monotonic requests from the sidebar plugin menu to open Settings. */
+    openRequest: HostObservable<number>
     /** settings.section ledger projected into ordered nav rows. */
     sections: HostObservable<readonly SettingsSectionRow[]>
     /** settings.onboarding ledger projected into coordinator order. */

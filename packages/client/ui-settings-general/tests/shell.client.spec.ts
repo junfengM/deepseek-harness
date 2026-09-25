@@ -42,7 +42,10 @@ async function bench() {
 
 function declare(slots: SlotRegistry): () => void {
   return slots.register(
-    { name: 'root', children: { 'sidebar.settings': { kind: 'single', scope: 'root' } } } as never,
+    { name: 'root', children: {
+      'sidebar.settings': { kind: 'single', scope: 'root' },
+      'sidebar.plugin.manage': { kind: 'single', scope: 'root' },
+    } } as never,
     () => null,
   )
 }
@@ -86,6 +89,18 @@ describe('ui-settings apply', () => {
     expect(after.slots.entries('sidebar.settings')[0]!.component).toBe(SettingsRoot)
     // The self-inflicted ledger notifications hit the duplicate guard.
     expect(after.slots.entries('sidebar.settings')).toHaveLength(1)
+  })
+
+  it('registers the plugin-menu management action and routes it into Settings', async () => {
+    const b = await bench()
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const manageEntry = b.slots.entries('sidebar.plugin.manage')[0]
+    expect(manageEntry).toBeDefined()
+    const openSettings = (manageEntry!.inject as () => { openSettings: () => void })().openSettings
+    expect(injectedOf(b.slots).hooks.openRequest.getSnapshot()).toBe(0)
+    openSettings()
+    expect(injectedOf(b.slots).hooks.openRequest.getSnapshot()).toBe(1)
   })
 
   it('projects the section ledger into ordered nav rows with option defaults', async () => {

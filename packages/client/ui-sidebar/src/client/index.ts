@@ -9,16 +9,21 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the Session root standard-props merge.
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
-import type { SidebarPanelMetadata, SidebarRootInjected } from './contract/slots.ts'
+import type { SidebarPanelMetadata, SidebarPluginMetadata, SidebarRootInjected } from './contract/slots.ts'
 import { SidebarRoot } from './SidebarRoot.tsx'
 import { en, zh, type SidebarKey } from './locales.ts'
+import { createPluginPinStore, pluginMetadataOf, samePlugins } from './plugin-entries.ts'
 
 export type {
   SidebarBrandMarkOwnerProps, SidebarBrandNameOwnerProps, SidebarFooterActionOwnerProps,
   SidebarPanelIconOwnerProps, SidebarPanelMetadata,
+  SidebarPluginIcon, SidebarPluginMetadata, SidebarPluginOwnerProps, SidebarPluginRegistration,
   SidebarRootComponentProps, SidebarRootInjected, SidebarSectionOwnerProps, SidebarSettingsOwnerProps,
 } from './contract/slots.ts'
 export type { SidebarKey } from './locales.ts'
+export {
+  DEFAULT_PLUGIN_PINS, PLUGIN_PIN_LIMIT, PLUGIN_PINS_STORAGE, createPluginPinStore, normalizePins,
+} from './plugin-entries.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -60,13 +65,33 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.slots.subscribe('sidebar.panellist', syncPanels), 'ui-sidebar: panel entries')
   ctx.effect(() => ctx.locale.subscribe(syncPanels), 'ui-sidebar: panel labels')
 
+  // Plugin pins are USER state with their own persistence, created before any
+  // plugin registers so normalization cannot mistake "not loaded yet" for
+  // "unknown". Plugin metadata is registration state and stays in memory.
+  const pluginPins = createPluginPinStore()
+  const plugins = createSnapshotStore<readonly SidebarPluginMetadata[]>([])
+  const syncPlugins = (): void => {
+    const next = ctx.slots.entriesOfSlot('sidebar.plugin')
+      .map(entry => pluginMetadataOf(entry))
+      .filter((plugin): plugin is SidebarPluginMetadata => plugin !== undefined)
+      .sort((a, b) => a.order - b.order)
+    if (samePlugins(plugins.getSnapshot(), next)) return
+    plugins.set(next)
+  }
+  ctx.effect(() => ctx.slots.subscribe('sidebar.plugin', syncPlugins), 'ui-sidebar: plugin entries')
+  ctx.effect(() => ctx.locale.subscribe(syncPlugins), 'ui-sidebar: plugin labels')
+
   const injectProps = (): SidebarRootInjected => ({
     // The shell's New Session button rides the Workspace UI's shared action
     // (current Session Workspace, then recent Workspace).
     startSession: (workspaceId) => { workspaceNavigation.startSession(workspaceId) },
     toggleSidebar: () => { ctx.layout.toggleSidebar() },
     selectPanel: (id) => { ctx.layout.selectPanel(id) },
-    hooks: { panels },
+    togglePluginPin: (id) => {
+      const pinned = pluginPins.getSnapshot()
+      pluginPins.set(pinned.includes(id) ? pinned.filter(entry => entry !== id) : [...pinned, id])
+    },
+    hooks: { panels, plugins, pluginPins },
   })
   ctx.slots.inject('sidebar', () => ctx.slots.register({
     name: 'sidebar',
@@ -78,8 +103,11 @@ export function apply(ctx: ClientContext): void {
       'sidebar.workspaces': { kind: 'single', scope: 'root' },
       'sidebar.settings': { kind: 'single', scope: 'root' },
       'sidebar.footer.action': { kind: 'list', scope: 'root' },
+      'sidebar.plugin': { kind: 'list', scope: 'root' },
+      'sidebar.plugin.manage': { kind: 'single', scope: 'root' },
     },
     inject: injectProps,
   }, SidebarRoot))
   syncPanels()
+  syncPlugins()
 }

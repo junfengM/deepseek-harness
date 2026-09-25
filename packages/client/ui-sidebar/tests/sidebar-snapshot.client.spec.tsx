@@ -9,12 +9,12 @@
  * the snapshots pin the shell chrome itself.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { SlotTestRuntime, usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import { apply, inject } from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { apply, inject, PLUGIN_PINS_STORAGE } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 
 // The service reads its initial locale from the browser; these specs assert
 // the shipped Chinese copy, so they state the browser they assume.
@@ -28,6 +28,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  localStorage.clear()
   vi.unstubAllEnvs()
 })
 
@@ -83,6 +84,31 @@ describe('sidebar shell snapshots', () => {
     expect(slot.container).toMatchSnapshot()
     // Same tree position: the owner flip re-rendered the shell in place.
     expect(slot.container.firstElementChild).toBe(shell)
+    await runtime.dispose()
+  })
+
+  it('keeps real SlotOutlet status wrappers outside activation buttons', async () => {
+    localStorage.setItem(PLUGIN_PINS_STORAGE, JSON.stringify(['status-plugin']))
+    const { runtime } = await bench({ locale: 'en' })
+    const dispose = runtime.slots.register({
+      name: 'sidebar.plugin',
+      id: 'status-plugin',
+      order: 10,
+      label: 'Status plugin',
+      registration: { icon: 'radar', group: 'Content', hasStatus: true, open: () => {} },
+    }, () => <span aria-label="Ready">Ready</span>)
+    const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300 })
+    await waitFor(() => expect(slot.view.getByRole('button', { name: 'Status plugin' })).toBeTruthy())
+    const pinnedButton = slot.view.getByRole('button', { name: 'Status plugin' })
+    expect(pinnedButton.querySelector('[data-slot]')).toBeNull()
+    expect(pinnedButton.parentElement?.querySelector('[data-slot="sidebar.plugin"]')).not.toBeNull()
+
+    fireEvent.click(slot.view.getByRole('button', { name: /^All plugins/ }))
+    const dialog = screen.getByRole('dialog')
+    const menuButton = within(dialog).getByRole('button', { name: 'Status plugin' })
+    expect(menuButton.querySelector('[data-slot]')).toBeNull()
+    expect(menuButton.parentElement?.querySelector('[data-slot="sidebar.plugin"]')).not.toBeNull()
+    dispose()
     await runtime.dispose()
   })
 

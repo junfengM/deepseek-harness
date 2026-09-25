@@ -72,6 +72,61 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
       class="footArea"
     >
       <div
+        aria-label="Plugins"
+        class="area areaRail"
+        role="group"
+      >
+        <div
+          class="allWrap"
+        >
+          <button
+            aria-expanded="false"
+            aria-haspopup="dialog"
+            aria-label="All plugins"
+            class="allButton allButtonRail"
+            type="button"
+          >
+            <span
+              aria-hidden="true"
+              class="pinGlyph"
+            >
+              <svg
+                data-content="97beeac2"
+                fill="none"
+                height="18"
+                viewBox="0 0 16 16"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              />
+            </span>
+          </button>
+        </div>
+        <div
+          aria-hidden="true"
+          class="probe"
+        >
+          <span
+            class="separator"
+            data-probe="separator"
+          />
+          <span
+            class="allButton"
+            data-probe="all"
+          >
+            <span
+              class="allLabel"
+            >
+              All plugins
+            </span>
+            <span
+              class="badge"
+            >
+              99
+            </span>
+          </span>
+        </div>
+      </div>
+      <div
         class="footerActions"
       >
         <div
@@ -202,6 +257,59 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       class="footArea"
     >
       <div
+        aria-label="Plugins"
+        class="area"
+        role="group"
+      >
+        <div
+          class="allWrap"
+        >
+          <button
+            aria-expanded="false"
+            aria-haspopup="dialog"
+            aria-label="All plugins"
+            class="allButton"
+            type="button"
+          >
+            <span
+              class="allLabel"
+            >
+              All plugins
+            </span>
+            <span
+              aria-hidden="true"
+              class="badge badgePlaceholder"
+            >
+              0
+            </span>
+          </button>
+        </div>
+        <div
+          aria-hidden="true"
+          class="probe"
+        >
+          <span
+            class="separator"
+            data-probe="separator"
+          />
+          <span
+            class="allButton"
+            data-probe="all"
+          >
+            <span
+              class="allLabel"
+            >
+              All plugins
+            </span>
+            <span
+              class="badge"
+            >
+              99
+            </span>
+          </span>
+        </div>
+      </div>
+      <div
         class="footerActions"
       >
         <div
@@ -331,6 +439,59 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
     <div
       class="footArea"
     >
+      <div
+        aria-label="插件"
+        class="area"
+        role="group"
+      >
+        <div
+          class="allWrap"
+        >
+          <button
+            aria-expanded="false"
+            aria-haspopup="dialog"
+            aria-label="全部插件"
+            class="allButton"
+            type="button"
+          >
+            <span
+              class="allLabel"
+            >
+              全部插件
+            </span>
+            <span
+              aria-hidden="true"
+              class="badge badgePlaceholder"
+            >
+              0
+            </span>
+          </button>
+        </div>
+        <div
+          aria-hidden="true"
+          class="probe"
+        >
+          <span
+            class="separator"
+            data-probe="separator"
+          />
+          <span
+            class="allButton"
+            data-probe="all"
+          >
+            <span
+              class="allLabel"
+            >
+              全部插件
+            </span>
+            <span
+              class="badge"
+            >
+              99
+            </span>
+          </span>
+        </div>
+      </div>
       <div
         class="footerActions"
       >

@@ -8,8 +8,9 @@
  * same top-down order) on one fade that ends with the slide. The bottom-pinned
  * settings control only fades. The workspace/session browsing region between
  * global panel rows and the foot is the `sidebar.workspaces` registrant's,
- * and the foot holds `sidebar.settings` plus `sidebar.footer.action`; the shell
- * hands them the wide flag (plus an expand request callback for the browser).
+ * and the foot holds the plugin area (`sidebar.plugin`), `sidebar.settings`,
+ * and `sidebar.footer.action`; the shell hands them the wide flag (plus an
+ * expand request callback for the browser).
  *
  * The column also owns whether the scroll regions nested in it draw a
  * scrollbar at all: the shell tracks the pointer and rebinds ui-theme's
@@ -25,6 +26,7 @@ import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/ds
 import type {
   SidebarPanelMetadata, SidebarRootComponentProps, SidebarRootInjected, SidebarSectionOwnerProps,
 } from './contract/slots.ts'
+import { PluginArea } from './PluginArea.tsx'
 import css from './SidebarRoot.module.css'
 
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
@@ -93,10 +95,15 @@ export function SidebarRoot({
   selectPanel,
   usePanels,
   usePanelInfo,
+  usePlugins,
+  usePluginPins,
+  togglePluginPin,
   t,
   renderSlot,
 }: SidebarRootComponentProps) {
   const panels = usePanels(snapshot => snapshot)
+  const plugins = usePlugins(snapshot => snapshot)
+  const pinnedPluginIds = usePluginPins(snapshot => snapshot)
   // Wide content stays mounted while the collapse animates (fading via
   // .collapsed .wide), unmounts at settle, and remounts right away on expand.
   const [settled, setSettled] = useState(collapsed)
@@ -264,8 +271,19 @@ export function SidebarRoot({
         })}
       </div>
 
-      {/* Footer actions stack above Settings in both sidebar widths. */}
+      {/* The plugin area owns the pin row and the constant total entry;
+          footer actions stack above Settings below it, in both widths. */}
       <div className={css.footArea}>
+        <PluginArea
+          width={width}
+          wide={wide}
+          plugins={plugins}
+          pinned={pinnedPluginIds}
+          onTogglePin={togglePluginPin}
+          renderStatus={(id, pinned) => renderSlot('sidebar.plugin', { wide, size: wide ? 16 : 18, pinned }, { only: id })}
+          renderManage={() => renderSlot('sidebar.plugin.manage', {})}
+          t={t}
+        />
         <div className={css.footerActions}>
           {renderSlot('sidebar.footer.action', { wide })}
         </div>

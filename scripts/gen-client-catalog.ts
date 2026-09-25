@@ -63,8 +63,8 @@ interface OptionDoc {
  * call may pass. Curated rather than projected because the authority is a
  * conditional type keyed on the slot's kind: it has no per-kind declaration a
  * lexical scan could read, and its own JSDoc addresses the compiler, not a
- * registrant. `verify-client-catalog` pins the authority's text so a change
- * there forces this table to be revisited.
+ * registrant. `verify-client-catalog` checks generated freshness; a change
+ * to the authority requires revisiting this table manually.
  */
 const REGISTER_OPTIONS: Readonly<Record<(typeof KINDS)[number], readonly OptionDoc[]>> = {
   single: [],
@@ -83,6 +83,38 @@ const REGISTER_OPTIONS: Readonly<Record<(typeof KINDS)[number], readonly OptionD
 
 /** The one register option a dynamic package must NOT pass, and why. */
 const PRIORITY_NOTE = 'Do NOT pass `priority`: the browser-half facade assigns one automatically, and it is LOWER than every shipped entry — in a single or keyed cell that means your entry is the one that renders.'
+
+/**
+ * Register options a SPECIFIC slot adds on top of its cardinality's set.
+ * Keyed by slot so an owner-declared `registration` member can be taught
+ * without widening the cardinality table for every other slot.
+ */
+const SLOT_OPTIONS: Readonly<Record<string, readonly OptionDoc[]>> = {
+  'sidebar.plugin': [
+    {
+      name: 'registration',
+      requirement: 'optional',
+      type: 'SidebarPluginRegistration',
+      doc: 'Per-registration plugin metadata. The shell owns the button geometry, the pin list, the overflow menu, and every glyph; you supply `icon` (a built-in icon NAME, never markup), `group` (the menu heading), `open` (called when the shell activates your entry) and `hasStatus` (declare it so the shell reserves your status glyph space before measuring), plus a component that paints ONLY that status glyph. Its reactive value can come from the entry inject factory\'s `hooks` sources.',
+    },
+  ],
+}
+
+/**
+ * Runnable example options a SPECIFIC slot adds, so the catalog shows the
+ * recommended path rather than a bare list registration.
+ */
+const SLOT_EXAMPLE: Readonly<Record<string, readonly string[]>> = {
+  'sidebar.plugin': [
+    "registration: { icon: 'radar', group: 'Content', open: () => { /* open your panel */ }, hasStatus: true }",
+  ],
+}
+
+/** Component examples for slots whose owner assigns a semantic component role. */
+const SLOT_COMPONENT_EXAMPLE: Readonly<Record<string, string>> = {
+  // `hasStatus: true` above means this component must be a status glyph, not a full panel.
+  'sidebar.plugin': "() => React.createElement('span', { 'aria-label': 'Ready' }, '●')",
+}
 
 /** Cross-cutting rules a registrant needs once, not per slot. */
 const CLIENT_NOTES: readonly string[] = [
@@ -201,11 +233,36 @@ export function validateSlotContracts(
     if (docProse(declaration.jsDoc) === '') {
       problems.push(`${where} has no JSDoc prose. Write it from the REGISTRANT's side: what to pass, what the component receives, whom a registration replaces, and what absence looks like (packages/client/ui-settings/src/client/contract/slots.ts is the template).`)
     }
+    const slotOptions = SLOT_OPTIONS[declaration.key]
+    const slotExample = SLOT_EXAMPLE[declaration.key]
+    if (declaration.registration !== undefined) {
+      if (slotOptions === undefined) {
+        problems.push(where + ' declares a registration member but SLOT_OPTIONS has no entry for it; add the register option and SLOT_EXAMPLE.')
+      } else {
+        const registrationOption = slotOptions.find(option => option.name === 'registration')
+        if (registrationOption === undefined) {
+          problems.push(where + ' declares a registration member but its SLOT_OPTIONS entry has no registration option.')
+        } else if (registrationOption.type !== declaration.registration) {
+          problems.push(where + ' declares registration type ' + declaration.registration + ' but SLOT_OPTIONS teaches ' + registrationOption.type + '.')
+        }
+      }
+      if (slotExample === undefined || slotExample.length === 0 || !slotExample.some(line => line.includes('registration:'))) {
+        problems.push(where + ' declares a registration member but SLOT_EXAMPLE has no registration example.')
+      }
+    } else if (slotOptions !== undefined || slotExample !== undefined) {
+      problems.push(where + ' has slot teaching but declares no registration member; remove the stale SLOT_OPTIONS/SLOT_EXAMPLE entry.')
+    }
     if (declaration.ownerType !== undefined
       && /^[A-Za-z_$][\w$]*$/.test(declaration.ownerType)
       && !types.has(declaration.ownerType)) {
       problems.push(`${where} names owner props '${declaration.ownerType}' that no exported declaration provides; export the interface so the catalog can show what the component receives.`)
     }
+  }
+  for (const key of Object.keys(SLOT_OPTIONS)) {
+    if (!byKey.has(key)) problems.push("SLOT_OPTIONS has key '" + key + "' but no SlotMap declaration; remove the stale teaching.")
+  }
+  for (const key of Object.keys(SLOT_EXAMPLE)) {
+    if (!byKey.has(key)) problems.push("SLOT_EXAMPLE has key '" + key + "' but no SlotMap declaration; remove the stale teaching.")
   }
   for (const registration of registrations) {
     if (!byKey.has(registration.key)) {
@@ -278,7 +335,10 @@ function entryOf(
     scope: declaration.scope,
     summary: firstSentence(doc),
     doc,
-    registerOptions: REGISTER_OPTIONS[declaration.kind as (typeof KINDS)[number]],
+    registerOptions: [
+      ...REGISTER_OPTIONS[declaration.kind as (typeof KINDS)[number]],
+      ...SLOT_OPTIONS[declaration.key] ?? [],
+    ],
     ownerProps: owner.declarations.map(type => truncate(type.text)),
     ownerPropsReferences: owner.references,
     standardProps: kits.get(declaration.scope) ?? [],
@@ -297,7 +357,7 @@ function entryOf(
     replaceRisk: cellOccupied && (declaration.kind === 'single' || declaration.kind === 'keyed')
       ? 'shadows-shipped-ui'
       : 'none',
-    example: exampleOf(declaration),
+    example: exampleOf(declaration, SLOT_EXAMPLE[declaration.key] ?? []),
     source: declaration.source,
   }
 }
@@ -332,15 +392,25 @@ function keyDomainOf(declaration: SlotDeclaration, occupants: readonly SlotRegis
 }
 
 /** A runnable minimal registration for one slot, per cardinality. */
-function exampleOf(declaration: SlotDeclaration): string {
-  const options = [`name: '${declaration.key}'`, ...KIND_EXAMPLE[declaration.kind] ?? []].join(', ')
+function exampleOf(declaration: SlotDeclaration, extra: readonly string[] = []): string {
+  const options = [
+    "name: '" + declaration.key + "'",
+    ...KIND_EXAMPLE[declaration.kind] ?? [],
+    ...extra,
+  ].join(', ')
+  const note = declaration.key === 'sidebar.footer.action'
+    ? '    // Non-plugin/system action only; plugin entries belong in sidebar.plugin.'
+    : undefined
+  const component = SLOT_COMPONENT_EXAMPLE[declaration.key]
+    ?? "() => React.createElement('div', null, 'hello')"
   return [
     'return {',
     "  inject: ['slots'],",
     '  apply(ctx) {',
+    ...(note === undefined ? [] : [note]),
     `    ctx.slots.inject('${declaration.key}', () => ctx.slots.register(`,
     `      { ${options} },`,
-    "      () => React.createElement('div', null, 'hello'),",
+    `      ${component},`,
     '    ))',
     '  },',
     '}',
@@ -420,11 +490,11 @@ export function renderClientCatalog(entries: readonly SlotEntry[]): string {
     ' */',
     '',
     '/* jscpd:ignore-start */',
-    '/** One option a register call passes for a given slot cardinality. */',
+    '/** One option a register call passes for a slot (cardinality baseline or slot-specific). */',
     'export interface ClientSlotOption {',
     '  /** Option name as written in the register options object. */',
     '  name: string',
-    '  /** Whether the cardinality requires it. */',
+    '  /** Whether this slot register contract requires it. */',
     '  requirement: string',
     '  /** Accepted type, in source spelling. */',
     '  type: string',
@@ -444,7 +514,7 @@ export function renderClientCatalog(entries: readonly SlotEntry[]): string {
     '  summary: string',
     '  /** Full contract prose from the SlotMap declaration. */',
     '  doc: string',
-    '  /** Options this cardinality accepts (beyond `name`). */',
+    '  /** Options this slot accepts (beyond `name`). */',
     '  registerOptions: readonly ClientSlotOption[]',
     '  /** Declarations of the props the owner passes down, with their own documentation. */',
     '  ownerProps: readonly string[]',

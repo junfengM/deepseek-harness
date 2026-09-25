@@ -238,6 +238,9 @@
 - id: tool-ask-user
   name: '@deepseek-ai/dsh-tool-ask-user'
 
+- id: tool-design-workbench
+  name: '@deepseek-ai/dsh-tool-design-workbench'
+
 - id: tool-todo
   name: '@deepseek-ai/dsh-tool-todo'
   config:

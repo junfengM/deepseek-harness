@@ -1,0 +1,10 @@
+# Real production profile overlay for the formal Design Workbench package.
+- id: headless-startup
+  disabled: true
+
+- id: headless-runner
+  disabled: true
+
+- insert:
+    - id: design-workbench
+      name: '@deepseek-ai/dsh-experimental-design-workbench'

@@ -411,6 +411,19 @@ Types: [ToolCallId](subsystems/core.md)
 
 Source: [`packages/fs/tool-present/src/types.ts:15`](../packages/fs/tool-present/src/types.ts)
 
+### `design/*`
+
+<a id="designsession-change--log-only"></a>
+
+#### `design/session-change` — log-only
+
+```ts persistence-catalog
+/** Informational pointer from a source chat to authoritative DesignSession state. */
+'design/session-change': DesignSessionChangeEvent
+```
+
+Source: [`packages/experimental/design-workbench-contract-spike/src/types.ts:66`](../packages/experimental/design-workbench-contract-spike/src/types.ts)
+
 ### `feedback/*`
 
 <a id="feedbackmessage-delete--log-only"></a>
