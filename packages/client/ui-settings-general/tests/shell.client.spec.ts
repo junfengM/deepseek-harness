@@ -86,6 +86,16 @@ describe('ui-settings-general shell', () => {
     for (const name of CHILD_NAMES) expect(c.ctx.slots.spec(name)).toEqual(CHILD_SPECS[name])
   }, COLD_BOOT_TIMEOUT_MS)
 
+  it('registers the plugin-menu management action and routes it into Settings', async ({ start }) => {
+    const c = await start()
+    const manageEntry = c.ctx.slots.entries('sidebar.plugin.manage')[0]
+    expect(manageEntry).toBeDefined()
+    const openSettings = (manageEntry!.inject as () => { openSettings: () => void })().openSettings
+    expect(injectedOf(c).hooks.openRequest.getSnapshot()).toBe(0)
+    openSettings()
+    expect(injectedOf(c).hooks.openRequest.getSnapshot()).toBe(1)
+  })
+
   it('projects the section ledger: product sections in order, defaults for bare rows, stable snapshots', async ({ start }) => {
     const c = await start()
     const { sections } = injectedOf(c).hooks

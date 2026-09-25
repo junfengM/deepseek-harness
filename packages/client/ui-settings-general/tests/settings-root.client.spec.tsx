@@ -15,7 +15,9 @@ import type { DesktopUpdateView } from '../src/types.ts'
 import { Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 
 // Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
-const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
+const useResource = (() => ({
+  status: 'none' as const, value: undefined, failure: undefined, reload: () => {},
+})) as GlobalStandardProps['useResource']
 const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
 afterEach(() => {
@@ -73,6 +75,8 @@ function mount({
   let currentConnectionState = connectionState
   const listeners = new Set<() => void>()
   const connectionListeners = new Set<() => void>()
+  const openRequestListeners = new Set<() => void>()
+  let currentOpenRequest = 0
   const reconnect = vi.fn()
   const renderSlot = vi.fn(
     ((key: string, _owner: unknown, opts?: { only?: string; fallback?: import('react').ReactNode }) => {
@@ -109,6 +113,15 @@ function mount({
     openDesktopUpdate: () => {},
     useDesktopUpdate: select => select(desktopUpdate),
     t: makeTranslate(dictionary),
+    useOpenRequest: (select) => {
+      const [, force] = useState(0)
+      useEffect(() => {
+        const listener = () => { force(n => n + 1) }
+        openRequestListeners.add(listener)
+        return () => { openRequestListeners.delete(listener) }
+      }, [])
+      return select(currentOpenRequest)
+    },
     useConnectionState: (select) => {
       const [, force] = useState(0)
       useEffect(() => {
@@ -158,7 +171,16 @@ function mount({
     act(() => { sessions.byId[activeId] = { ...session, blank: next } })
     view.rerender(<SettingsRoot {...props} />)
   }
-  return { view, renderSlot, bump, listeners, reconnect, setConnectionState, setDesktopUpdate, setShortcuts, setOnboardingActive }
+  const requestOpen = () => {
+    act(() => {
+      currentOpenRequest += 1
+      for (const fn of [...openRequestListeners]) fn()
+    })
+  }
+  return {
+    view, renderSlot, bump, listeners, reconnect, setConnectionState,
+    setDesktopUpdate, setShortcuts, setOnboardingActive, requestOpen,
+  }
 }
 
 function openPanel() {
@@ -197,6 +219,20 @@ describe('SettingsRoot trigger', () => {
     fireEvent.click(trigger, { detail: 0 })
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.getByRole('button', { name, expanded: true })).toBeTruthy()
+  })
+
+  it('opens the plugin settings section from an external menu request', async () => {
+    const mounted = mount({ rows: [
+      { id: 'general', order: 0, label: 'General' },
+      { id: 'plugins', order: 15, label: 'Plugins' },
+    ] })
+    mounted.requestOpen()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    await vi.waitFor(() => {
+      const last = mounted.renderSlot.mock.calls.filter(call => call[0] === 'settings.section').at(-1)
+      expect(last?.[2]).toEqual({ only: 'plugins' })
+      expect(typeof (last?.[1] as { close?: unknown } | undefined)?.close).toBe('function')
+    })
   })
 
   it('shows outage, retry progress, and a two-second recovery confirmation', () => {
@@ -509,7 +545,13 @@ it('opens Account from the contributed sidebar launcher', () => {
 })
 
 it('shows the effective settings binding on focus and exposes it to assistive technology', () => {
-  mount({ shortcuts: [{ id: 'settings.open' as ShortcutCommandId, label: 'Open settings', aliases: [], keys: ['⌘', ','], aria: 'Meta+,', binding: { code: 'Comma', modifiers: ['meta'] }, modified: false, conflicts: [], issue: null }] })
+  mount({
+    shortcuts: [{
+      id: 'settings.open' as ShortcutCommandId, label: 'Open settings', aliases: [],
+      keys: ['⌘', ','], aria: 'Meta+,', binding: { code: 'Comma', modifiers: ['meta'] },
+      modified: false, conflicts: [], issue: null,
+    }],
+  })
   const trigger = screen.getByRole('button', { name: 'Settings' })
   expect(trigger.getAttribute('aria-keyshortcuts')).toBe('Meta+,')
   fireEvent.focus(trigger)
@@ -517,12 +559,19 @@ it('shows the effective settings binding on focus and exposes it to assistive te
 })
 
 it('passes current Settings key labels to the launcher and removes them when unbound', () => {
-  const row: ShortcutCatalogEntry = { id: 'settings.open' as ShortcutCommandId, label: 'Open settings', aliases: [], keys: ['⌘', ','], aria: 'Meta+,', binding: { code: 'Comma', modifiers: ['meta'] }, modified: false, conflicts: [], issue: null }
+  const row: ShortcutCatalogEntry = {
+    id: 'settings.open' as ShortcutCommandId, label: 'Open settings', aliases: [],
+    keys: ['⌘', ','], aria: 'Meta+,', binding: { code: 'Comma', modifiers: ['meta'] },
+    modified: false, conflicts: [], issue: null,
+  }
   const { renderSlot, setShortcuts } = mount({ shortcuts: [row] })
   const launcher = () => renderSlot.mock.calls.filter(call => call[0] === 'settings.launcher').at(-1)?.[1]
   expect(launcher()).toMatchObject({ settingsShortcut: { keys: ['⌘', ','], aria: 'Meta+,' } })
 
-  setShortcuts([{ ...row, keys: ['Ctrl', 'Shift', 'S'], aria: 'Control+Shift+S', binding: { code: 'KeyS', modifiers: ['control', 'shift'] }, modified: true }])
+  setShortcuts([{
+    ...row, keys: ['Ctrl', 'Shift', 'S'], aria: 'Control+Shift+S',
+    binding: { code: 'KeyS', modifiers: ['control', 'shift'] }, modified: true,
+  }])
   expect(launcher()).toMatchObject({ settingsShortcut: { keys: ['Ctrl', 'Shift', 'S'], aria: 'Control+Shift+S' } })
 
   setShortcuts([{ ...row, keys: [], aria: undefined, binding: null, modified: true }])

@@ -96,6 +96,8 @@ interface ErasedRegisterOptions {
   priority?: number
   /** Declared dictionary namespace (the renderer synthesizes the `t` seat from it). */
   locale?: string
+  /** Owner-declared registration metadata carried verbatim to the core. */
+  registration?: object | undefined
   registrant?: string
 }
 

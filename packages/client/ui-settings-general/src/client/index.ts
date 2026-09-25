@@ -8,6 +8,7 @@
  * Export discipline: packages/client/AGENTS.md.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 // Type-only: pulls the ctx.remote merge and its fixed Host facts.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
@@ -37,6 +38,7 @@ import { DeveloperToolsRow, type DeveloperToolsRowInjected } from './DeveloperTo
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.tsx'
 import { SettingsDocumentStore } from './settings-document-store.ts'
+import { ManagePluginsAction } from './ManagePluginsAction.tsx'
 import { en, zh, type SettingsKey } from './locales.ts'
 
 export type {
@@ -93,6 +95,10 @@ export function apply(ctx: ClientContext): void {
     name: 'sidebar.toggle.badge', locale: NS,
     inject: () => ({ hooks: { desktopUpdate: desktopUpdate.store, connectionState: connection.state } }),
   }, DesktopUpdateBadge))
+  // The plugin overflow menu is a sibling of SettingsRoot, so opening Settings
+  // crosses that boundary through a tiny request source rather than a DOM event.
+  const openRequest = createSnapshotStore(0)
+  const requestOpen = (): void => { openRequest.set(openRequest.getSnapshot() + 1) }
 
   // Copy freshness is framework-owned: components read the standard `t`
   // seat, and the nav label is a thunk the owner resolves per render — no
@@ -126,6 +132,7 @@ export function apply(ctx: ClientContext): void {
       shortcuts: ctx.shortcuts.catalog,
       desktopUpdate: desktopUpdate.store,
       connectionState: connection.state,
+      openRequest,
       sections: {
         getSnapshot: () => {
           const version = ctx.slots.getVersion('settings.section')
@@ -172,6 +179,11 @@ export function apply(ctx: ClientContext): void {
       },
     },
   })
+  ctx.slots.inject('sidebar.plugin.manage', () => ctx.slots.register({
+    name: 'sidebar.plugin.manage',
+    locale: NS,
+    inject: () => ({ openSettings: requestOpen }),
+  }, ManagePluginsAction))
   ctx.slots.inject('sidebar.settings', () => {
     const shellHandle = createSettingsShellStore()
     const shellInstance = shellHandle.create()

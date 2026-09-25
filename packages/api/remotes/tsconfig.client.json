@@ -102,6 +102,9 @@
       "path": "../../document/office-to-pdf"
     },
     {
+      "path": "../../interaction/design-workbench/tsconfig.host.json"
+    },
+    {
       "path": "../account-controller"
     },
     {

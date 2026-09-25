@@ -117,6 +117,8 @@ root
 │  ├─ sidebar.brand.name
 │  ├─ sidebar.panellist
 │  ├─ sidebar.footer.action
+│  ├─ sidebar.plugin
+│  ├─ sidebar.plugin.manage
 │  ├─ sidebar.workspaces
 │  │  ├─ sidebar.workspaces.directoryFlow
 │  │  ├─ sidebar.workspaces.session.menu.item
@@ -196,4 +198,6 @@ root
 - 业务与传输状态留在所属 Cordis service 或 Client model 中。Slot store 只承载共享的视图与交互状态。
 - 可观测 source 及其 snapshot identity 在值变化前保持稳定；值变化时通过同一个 source 发布。
 - UI domain 之间只传 JSON 兼容数据和 callback。`hooks` compartment 是裸 observable 的唯一例外；React 内容通过 slot 传递。
+- 需要钉住、排序、溢出或状态的插件入口使用 `sidebar.plugin`；按钮与图标几何由壳层统一拥有，`sidebar.footer.action` 仅保留给非插件／系统动作。
+- `sidebar.plugin.manage` 是由 Settings 拥有的可选 single action；侧栏只负责把它放进菜单 footer，Settings 再将其路由到 Plugins section。
 - 将 `single` 和已有 occupant 的 keyed cell 视为替换点。增量扩展使用 list id 或尚未占用的 key。

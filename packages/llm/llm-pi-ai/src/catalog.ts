@@ -27,6 +27,7 @@ import type {
   OpenAIResponsesCompat,
   Provider,
   ThinkingLevelMap,
+  MistralConversationsCompat,
 } from '@earendil-works/pi-ai'
 
 /**
@@ -242,48 +243,57 @@ const COMPLETIONS_COMPAT_GATE = {
   thinkingFormat: 'offer',
   chatTemplateKwargs: 'offer',
   chatTemplateArgs: 'offer',
-  supportsThinkingTokenBudget: 'offer',
-  thinkingTokenBudgetField: 'offer',
-  vllmPriority: 'offer',
-  supportsStrictMode: 'offer',
-  cacheControlFormat: 'offer',
-  supportsLongCacheRetention: 'offer',
   openRouterRouting: 'withhold',
   vercelGatewayRouting: 'withhold',
   zaiToolStream: 'withhold',
+  thinkingTokenBudgetField: 'offer',
+  supportsThinkingTokenBudget: 'offer',
   supportsOpenAIGrammarTools: 'withhold',
+  supportsMidConvoSystemMessages: 'withhold',
+  supportsMidConvoToolAdditions: 'withhold',
+  supportsStrictMode: 'offer',
+  cacheControlFormat: 'offer',
   sendSessionAffinityHeaders: 'withhold',
-  deferredToolsMode: 'withhold',
   sessionAffinityFormat: 'withhold',
+  supportsLongCacheRetention: 'offer',
+  vllmPriority: 'offer',
 } as const satisfies Record<keyof OpenAICompletionsCompat, CompatDisposition>
 
 /** Disposition of every `OpenAIResponsesCompat` field; a drift gate like the one above. */
 const RESPONSES_COMPAT_GATE = {
   supportsDeveloperRole: 'offer',
-  supportsMaxOutputTokens: 'offer',
-  supportsStrictMode: 'offer',
-  supportsLongCacheRetention: 'offer',
+  supportsMidConvoSystemMessages: 'withhold',
   sessionAffinityFormat: 'withhold',
+  supportsLongCacheRetention: 'offer',
+  supportsStrictMode: 'offer',
   supportsOpenAIGrammarTools: 'withhold',
   supportsAdditionalTools: 'withhold',
   supportsToolSearch: 'withhold',
   supportsExplicitPromptCacheMode: 'withhold',
+  supportsMaxOutputTokens: 'offer',
 } as const satisfies Record<keyof OpenAIResponsesCompat, CompatDisposition>
 
 /** Disposition of every `AnthropicMessagesCompat` field; a drift gate like the one above. */
 const ANTHROPIC_COMPAT_GATE = {
   supportsEagerToolInputStreaming: 'offer',
   supportsLongCacheRetention: 'offer',
+  sendSessionAffinityHeaders: 'withhold',
+  sessionAffinityFormat: 'withhold',
   supportsCacheControlOnTools: 'offer',
   supportsTemperature: 'offer',
   forceAdaptiveThinking: 'offer',
   allowEmptySignature: 'offer',
   supportsStrictTools: 'offer',
-  sendSessionAffinityHeaders: 'withhold',
-  supportsToolReferences: 'withhold',
   supportsMidConvoEffort: 'withhold',
+  supportsMidConvoSystemMessages: 'withhold',
+  supportsMidConvoToolChanges: 'withhold',
   allowedFallbackModels: 'withhold',
 } as const satisfies Record<keyof AnthropicMessagesCompat, CompatDisposition>
+
+/** Disposition of every `MistralConversationsCompat` field; a drift gate like the one above. */
+const MISTRAL_COMPAT_GATE = {
+  supportsMidConvoSystemMessages: 'withhold',
+} as const satisfies Record<keyof MistralConversationsCompat, CompatDisposition>
 
 /** Disposition of every `BedrockCompat` field; a drift gate like the one above. */
 const BEDROCK_COMPAT_GATE = {
@@ -315,6 +325,7 @@ const COMPAT_GATES: Readonly<Record<ApiWithCompat, Readonly<Record<string, Compa
   'openai-codex-responses': RESPONSES_COMPAT_GATE,
   'anthropic-messages': ANTHROPIC_COMPAT_GATE,
   'bedrock-converse-stream': BEDROCK_COMPAT_GATE,
+  'mistral-conversations': MISTRAL_COMPAT_GATE,
 }
 
 /**
@@ -337,6 +348,7 @@ type OfferedCompatField =
   | OfferedIn<typeof RESPONSES_COMPAT_GATE>
   | OfferedIn<typeof ANTHROPIC_COMPAT_GATE>
   | OfferedIn<typeof BEDROCK_COMPAT_GATE>
+  // `mistral-conversations` offers no field yet, so its gate contributes no member.
 
 /**
  * pi-ai wire-compatibility switches, set on the route (its models' default) or

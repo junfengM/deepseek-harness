@@ -40,7 +40,10 @@
   // belongs to the host aggregate, which excludes this program's `*.client.*`
   // in turn. `exclude` wins over `include`, so the test glob above stays broad.
   "exclude": [
-    "packages/client/*/tests/**/*.host.spec.ts"
+    "packages/client/*/tests/**/*.host.spec.ts",
+    // Crosses both faces (host gateway + client model) and a fixture helper of
+    // another package, which neither aggregate can list; runs under vitest.
+    "packages/interaction/design-workbench/tests/gateway.transport.client.spec.ts"
   ],
   "references": [
     { "path": "./tsconfig.desktop-keyboard-tests.json" },
@@ -66,6 +69,8 @@
     { "path": "./packages/client/ui-primitives" },
     { "path": "./packages/client/modules" },
     { "path": "./packages/experimental/inspector/tsconfig.client.json" },
+    { "path": "./packages/experimental/design-workbench-contract-spike/tsconfig.client.json" },
+    { "path": "./packages/interaction/design-workbench/tsconfig.client.json" },
     { "path": "./packages/client/hmr" },
     { "path": "./packages/client/connection/tsconfig.client.json" },
     { "path": "./packages/client/file-upload/tsconfig.client.json" },

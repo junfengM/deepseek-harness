@@ -130,6 +130,12 @@ export interface SlotEntryDef {
    */
   hookContext?: unknown
   /**
+   * Optional per-registration metadata merged into the kind options and
+   * preserved on StoredEntry.options for a metadata-driven shell. The slot
+   * owner defines the concrete shape; the core only carries it.
+   */
+  registration?: object
+  /**
    * Optional Slot-level inject face supplied by the parent registration's
    * child declaration. Every registered entry receives its bound component
    * face; child registrants do not own or replace this common capability.
@@ -758,6 +764,16 @@ export interface StoredFactory {
 export type SlotLabel = string | (() => string)
 
 /**
+ * Registration-specific metadata options declared by a slot owner, narrowed
+ * per slot: a declaration that names a `registration` shape accepts it
+ * optionally, every other slot rejects the field outright (`never`), so a
+ * metadata-driven shell cannot be fed through a slot that never promised to
+ * carry metadata. The core carries the value without interpreting it.
+ */
+type RegistrationOptionsOf<K extends keyof SlotMap & string> =
+  SlotMap[K] extends { registration: infer O extends object } ? { registration?: O } : { registration?: never }
+
+/**
  * Kind shape fields carried in register options (keyed dispatch key; list
  * id/order/label; chain select/priority; non-chain priority = cell shadowing rank).
  */
@@ -831,7 +847,7 @@ type BaseOptions<
   locale?: N
   /** Registrant identity label for diagnostics (the runtime Service wrapper stamps the caller's fiber name). */
   registrant?: string
-} & KindOptions<K, EntryKey, M>
+} & KindOptions<K, EntryKey, M> & RegistrationOptionsOf<K>
 
 /**
  * One stored registration, as recorded by the core and read by the render
@@ -840,7 +856,15 @@ type BaseOptions<
  */
 export interface StoredEntry {
   component: unknown
-  options: { key?: string; id?: string; order?: number; label?: SlotLabel; priority?: number }
+  options: {
+    key?: string
+    id?: string
+    order?: number
+    label?: SlotLabel
+    priority?: number
+    /** Owner-declared per-registration metadata, carried verbatim (see {@link SlotEntryDef.registration}). */
+    registration?: object | undefined
+  }
   /** Chain routing selector (type-erased like `inject`; present exactly on chain-slot entries). */
   select?: ((owner: never) => unknown) | undefined
   /** Registrant business face; positional params derive from the declaration (sessionId?, actions?). */
@@ -880,6 +904,8 @@ interface ErasedOptions {
   label?: SlotLabel | undefined
   select?: ((owner: never) => unknown) | undefined
   priority?: number | undefined
+  /** Owner-declared per-registration metadata, carried verbatim onto {@link StoredEntry.options}. */
+  registration?: object | undefined
   children?: Record<string, SlotSpec<SlotEntryDef>> | undefined
   store?: StoreDecl | undefined
   locale?: string | undefined
@@ -1266,6 +1292,7 @@ export class SlotCore {
         ...(options.order !== undefined ? { order: options.order } : {}),
         ...(options.label !== undefined ? { label: options.label } : {}),
         ...(options.priority !== undefined ? { priority: options.priority } : {}),
+        ...(options.registration !== undefined ? { registration: options.registration } : {}),
       },
       ...(options.select !== undefined ? { select: options.select } : {}),
       ...(options.inject !== undefined ? { inject: options.inject } : {}),

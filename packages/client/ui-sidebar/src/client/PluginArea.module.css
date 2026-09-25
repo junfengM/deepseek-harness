@@ -1,0 +1,453 @@
+/* Plugin area: pinned entries, a hairline, and the constant total entry.
+   Every value comes from a shell token so both color schemes follow the app.
+   Expanded the area is one horizontal row; in the 56px rail it stacks, which
+   is also why the rail needs no width measuring (see PluginArea.tsx). */
+
+.area {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-bottom: 4px;
+}
+
+.areaRail {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* One entry control. Geometry lives here, never in the registrant. */
+.pinWrap {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+}
+
+.pinWrapRail {
+  width: 36px;
+  height: 36px;
+}
+
+.pinButton {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pinButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.pinButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-label-primary);
+  outline-offset: 1px;
+}
+
+.pinButtonRail {
+  width: 36px;
+  height: 36px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.pinGlyph {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Status is an overlay sibling with a bounded seat: it never widens the 30px
+   entry used by the fit pass and never becomes a child of its button (the
+   renderer's SlotOutlet is a div). A plugin status component must paint a
+   compact 16/18px glyph or badge inside this fixed box; long text is clipped
+   rather than changing row geometry or colliding with the next entry. */
+.status {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 18px;
+  padding: 0 2px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.separator {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+  background: var(--dsw-alias-border-l3);
+}
+
+.separatorRail {
+  width: 16px;
+  height: 1px;
+  margin: 2px 0;
+}
+
+.allWrap {
+  flex: none;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.allButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 9px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.allButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.allButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-label-primary);
+  outline-offset: 1px;
+}
+
+.allButtonOpen {
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+.allButtonRail {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+.allLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Overflow count: the number of entries NOT shown outside. The fixed seat is
+   always present in the expanded total entry; zero is visually hidden but keeps
+   the same width as a non-zero count. */
+.badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  height: 14px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-primary-inverted);
+  font-size: 10px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.badgePlaceholder {
+  visibility: hidden;
+}
+
+/* Laid out but never painted: the measuring pass reads real widths off these
+   clones instead of guessing, and they carry the same classes as the controls
+   so a shape change cannot silently desynchronize the two. */
+.probe {
+  position: absolute;
+  top: 0;
+  left: -9999px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Overflow menu: fixed-positioned and portalled (the column clips overflow),
+   opening above the total entry and right-aligned to it. */
+.menu {
+  position: fixed;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(268px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+  padding: 4px;
+  border-radius: 20px;
+  background: var(--dsw-specific-menu);
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  box-shadow: var(--dsw-elevation-prominent);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.menuHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 4px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.menuHeadTitle {
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+}
+
+.menuBody {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.menuGroup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 2px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.menuRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 10px;
+}
+
+.menuRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.menuOpenWrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.menuOpen {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 34px 6px 10px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuOpen:focus-visible,
+.menuPin:focus-visible {
+  outline: 2px solid var(--dsw-alias-label-primary);
+  outline-offset: -2px;
+}
+
+.menuCheck {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.menuIcon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.menuName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Menu status is a fixed seat for both pinned and unpinned rows. It is a
+   sibling of the activation button because a SlotOutlet is a div. */
+.menuStatus {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 18px;
+  overflow: hidden;
+  transform: translateY(-50%);
+  font-size: 10px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* Pin toggle: its own control, never a click target nested inside the row
+   button — the design稿 drew it as a span inside a button, which is invalid
+   HTML and unreachable by keyboard. */
+.menuPin {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-right: 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.menuRow:hover .menuPin,
+.menuRow:focus-within .menuPin,
+.menuPin:focus-visible,
+.menuPinOn {
+  opacity: 1;
+}
+
+.menuPin:hover {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary);
+}
+
+.menuPinOn {
+  color: var(--dsw-alias-label-primary);
+}
+
+.menuEmpty {
+  padding: 10px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.menuManage {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.menuManage :global(button) {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.menuManage :global(button:hover) {
+  color: var(--dsw-alias-label-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.menuManage :global(button:focus-visible) {
+  outline: 2px solid var(--dsw-alias-label-primary);
+  outline-offset: 2px;
+}
+
+.menuFoot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 6px 10px 4px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pinButton,
+  .allButton,
+  .menuPin {
+    transition: none;
+  }
+}

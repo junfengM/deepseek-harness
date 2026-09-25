@@ -14,11 +14,11 @@
  */
 
 /* jscpd:ignore-start */
-/** One option a register call passes for a given slot cardinality. */
+/** One option a register call passes for a slot (cardinality baseline or slot-specific). */
 export interface ClientSlotOption {
   /** Option name as written in the register options object. */
   name: string
-  /** Whether the cardinality requires it. */
+  /** Whether this slot register contract requires it. */
   requirement: string
   /** Accepted type, in source spelling. */
   type: string
@@ -38,7 +38,7 @@ export interface ClientSlotEntry {
   summary: string
   /** Full contract prose from the SlotMap declaration. */
   doc: string
-  /** Options this cardinality accepts (beyond `name`). */
+  /** Options this slot accepts (beyond `name`). */
   registerOptions: readonly ClientSlotOption[]
   /** Declarations of the props the owner passes down, with their own documentation. */
   ownerProps: readonly string[]
@@ -1762,6 +1762,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-conversation ConversationPanel key \'conversation\'',
       'client-ui-plugin-manager PluginManagerPage',
       'client-ui-schedule TaskManagerPage',
+      'design-workbench DesignWorkbenchPanel as SlotComponent<PanelProps>',
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'main\', () => ctx.slots.register(\n      { name: \'main\', key: \'<one key the owner dispatches>\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
@@ -2915,7 +2916,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar.brand.mark\', () => ctx.slots.register(\n      { name: \'sidebar.brand.mark\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:25',
+    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:26',
   },
   {
     key: 'sidebar.brand.name',
@@ -2946,7 +2947,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar.brand.name\', () => ctx.slots.register(\n      { name: \'sidebar.brand.name\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:30',
+    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:31',
   },
   {
     key: 'sidebar.chat.conversation',
@@ -2990,7 +2991,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     kind: 'list',
     scope: 'root',
     summary: 'Optional actions beside Settings at the sidebar foot.',
-    doc: 'Optional actions beside Settings at the sidebar foot. Declared by this\npackage\'s \'sidebar\' entry; each action receives only the column state.',
+    doc: 'Optional actions beside Settings at the sidebar foot. Declared by this\npackage\'s \'sidebar\' entry; each action receives only the column state.\n\nThis is NOT the plugin channel: the shell renders these at full column\nwidth with no pinning and no overflow, so a plugin that needs pinning,\nordering, or a status glyph registers into `sidebar.plugin` instead.',
     registerOptions: [
       {
         name: 'id',
@@ -3032,8 +3033,8 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-cordis CordisPanel id \'cordis-panel\'',
     ],
     replaceRisk: 'none',
-    example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar.footer.action\', () => ctx.slots.register(\n      { name: \'sidebar.footer.action\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:53',
+    example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    // Non-plugin/system action only; plugin entries belong in sidebar.plugin.\n    ctx.slots.inject(\'sidebar.footer.action\', () => ctx.slots.register(\n      { name: \'sidebar.footer.action\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
+    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:58',
   },
   {
     key: 'sidebar.panellist',
@@ -3084,7 +3085,92 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar.panellist\', () => ctx.slots.register(\n      { name: \'sidebar.panellist\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:35',
+    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:36',
+  },
+  {
+    key: 'sidebar.plugin',
+    kind: 'list',
+    scope: 'root',
+    summary: 'Plugin entries for the sidebar plugin area.',
+    doc: 'Plugin entries for the sidebar plugin area. The shell owns the button\ngeometry, the pin list, the overflow menu, and every glyph; a\nregistration contributes metadata (registration.icon / .group / .open /\n.hasStatus) plus a component that paints ONLY its own status glyph and\nexposes its value as readable text or an aria-label.\nDeclared by this package\'s \'sidebar\' entry.',
+    registerOptions: [
+      {
+        name: 'id',
+        requirement: 'required',
+        type: 'string',
+        doc: 'Your cell key. Use an id of your own: a fresh id is added beside the shipped entries, while reusing a shipped id puts you in THAT cell and replaces it. Owners that filter by id address you by it.',
+      },
+      {
+        name: 'order',
+        requirement: 'optional',
+        type: 'number',
+        doc: 'Position among the entries, ascending (default 0).',
+      },
+      {
+        name: 'label',
+        requirement: 'optional',
+        type: 'string | (() => string)',
+        doc: 'Display text where the owner projects one (nav rows, tabs). A thunk is re-read on every projection, so localized text follows the active locale without re-registering.',
+      },
+      {
+        name: 'registration',
+        requirement: 'optional',
+        type: 'SidebarPluginRegistration',
+        doc: 'Per-registration plugin metadata. The shell owns the button geometry, the pin list, the overflow menu, and every glyph; you supply `icon` (a built-in icon NAME, never markup), `group` (the menu heading), `open` (called when the shell activates your entry) and `hasStatus` (declare it so the shell reserves your status glyph space before measuring), plus a component that paints ONLY that status glyph. Its reactive value can come from the entry inject factory\'s `hooks` sources.',
+      },
+    ],
+    ownerProps: [
+      '/**\n * Owner share of a plugin entry: the column state its status component\n * renders against. The component paints ONLY its own glyph — the shell owns\n * the button, icon, label, and geometry. It must expose the status value to\n * assistive technology with readable text or an `aria-label`; a decorative-only\n * dot is not sufficient.\n */\nexport interface SidebarPluginOwnerProps {\n  /** Whether the sidebar renders wide content (false = 56px rail). */\n  wide: boolean\n  /** Requested square edge in pixels for the entry\'s status glyph. */\n  size: number\n  /** Whether this entry is currently pinned outside the menu. */\n  pinned: boolean\n}',
+    ],
+    ownerPropsReferences: [],
+    standardProps: [
+      'useResource: UseResource',
+      'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
+      'usePanelInfo: UsePanelInfo',
+      'useSessions: UseSessions',
+      'useSessionStatus: UseSessionStatus',
+      'useSessionRetainInfo: UseSessionRetainInfo',
+      'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
+    ],
+    keyDomain: '',
+    hookContext: '',
+    slotInject: '',
+    declaredBy: 'an entry in \'sidebar\' (client-ui-sidebar), so it exists while that entry is mounted',
+    occupants: [
+      'design-workbench DesignWorkbenchStatus as SlotComponent<StatusProps> id \'design-workbench\'',
+    ],
+    replaceRisk: 'none',
+    example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar.plugin\', () => ctx.slots.register(\n      { name: \'sidebar.plugin\', id: \'my-entry\', order: 100, label: \'My entry\', registration: { icon: \'radar\', group: \'Content\', open: () => { /* open your panel */ }, hasStatus: true } },\n      () => React.createElement(\'span\', { \'aria-label\': \'Ready\' }, \'●\'),\n    ))\n  },\n}',
+    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:67',
+  },
+  {
+    key: 'sidebar.plugin.manage',
+    kind: 'single',
+    scope: 'root',
+    summary: 'Optional settings-owned management action in the plugin overflow footer.',
+    doc: 'Optional settings-owned management action in the plugin overflow footer.',
+    registerOptions: [],
+    ownerProps: [],
+    ownerPropsReferences: [],
+    standardProps: [
+      'useResource: UseResource',
+      'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
+      'usePanelInfo: UsePanelInfo',
+      'useSessions: UseSessions',
+      'useSessionStatus: UseSessionStatus',
+      'useSessionRetainInfo: UseSessionRetainInfo',
+      'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
+    ],
+    keyDomain: '',
+    hookContext: '',
+    slotInject: '',
+    declaredBy: 'an entry in \'sidebar\' (client-ui-sidebar), so it exists while that entry is mounted',
+    occupants: [
+      'client-ui-settings-general ManagePluginsAction',
+    ],
+    replaceRisk: 'shadows-shipped-ui',
+    example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar.plugin.manage\', () => ctx.slots.register(\n      { name: \'sidebar.plugin.manage\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
+    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:74',
   },
   {
     key: 'sidebar.right.pane.tab',
@@ -3730,7 +3816,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar.settings\', () => ctx.slots.register(\n      { name: \'sidebar.settings\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:48',
+    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:49',
   },
   {
     key: 'sidebar.toggle.badge',
@@ -3759,7 +3845,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar.toggle.badge\', () => ctx.slots.register(\n      { name: \'sidebar.toggle.badge\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:19',
+    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:20',
   },
   {
     key: 'sidebar.workspaces',
@@ -3790,7 +3876,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar.workspaces\', () => ctx.slots.register(\n      { name: \'sidebar.workspaces\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:42',
+    source: 'packages/client/ui-sidebar/src/client/contract/slots.ts:43',
   },
   {
     key: 'sidebar.workspaces.directoryFlow',

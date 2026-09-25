@@ -40,6 +40,7 @@ import SkillRegistry from '@deepseek-ai/dsh-skill'
 import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
 import * as ToolAskUser from '@deepseek-ai/dsh-tool-ask-user'
+import * as ToolDesignWorkbench from '@deepseek-ai/dsh-tool-design-workbench'
 import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
 import * as ToolPwsh from '@deepseek-ai/dsh-tool-pwsh'
 import * as ToolBashPersistent from '@deepseek-ai/dsh-tool-bash-persistent'
@@ -255,6 +256,22 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'ask_user_question pauses the tool call until the active UI provider returns a human answer.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-design-workbench',
+    dir: 'tool-design-workbench',
+    source: 'packages/interaction/tool-design-workbench/src/index.ts',
+    requires: ['ctx.tools', 'ctx.userQuestions', 'ctx.designWorkbenchController (Web Host only)'],
+    writes: ['tool/call', 'user-questions/request', 'Host DesignSession create after explicit confirmation', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(UserQuestionService)
+      ctx.reflect.provide('designWorkbenchController', {
+        create: () => Promise.reject(new Error('tool catalog must not execute DesignSession creation')),
+      })
+      await ctx.plugin(ToolDesignWorkbench)
+    },
+    note:
+      'The tool asks for its own explicit confirmation before creating; it derives sourceSessionId from the calling Agent and registers only in a composition with the optional Workbench Host controller.',
   },
   {
     pkg: '@deepseek-ai/dsh-tools',

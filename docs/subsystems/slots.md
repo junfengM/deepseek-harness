@@ -117,6 +117,8 @@ root
 │  ├─ sidebar.brand.name
 │  ├─ sidebar.panellist
 │  ├─ sidebar.footer.action
+│  ├─ sidebar.plugin
+│  ├─ sidebar.plugin.manage
 │  ├─ sidebar.workspaces
 │  │  ├─ sidebar.workspaces.directoryFlow
 │  │  ├─ sidebar.workspaces.session.menu.item
@@ -196,4 +198,6 @@ The generated Client inspect catalog is the exhaustive contract for each key: ca
 - Keep business and transport state in their owning Cordis services or Client models. Slot stores hold shared viewing and interaction state only.
 - Keep observable source and snapshot identities stable between changes. Republish through the same source whenever its value changes.
 - Pass JSON-compatible data and callbacks between UI domains. The `hooks` compartment is the sole exception for bare observables; React content travels through slots.
+- For plugin entries that need pinning, ordering, overflow, or status, use `sidebar.plugin`; the shell owns the button and glyph geometry, while `sidebar.footer.action` remains for non-plugin/system actions.
+- `sidebar.plugin.manage` is an optional single action owned by Settings; the sidebar only places it in the menu footer, and Settings routes it to the Plugins section.
 - Treat `single` and an occupied keyed cell as replacement points. Use list ids or an unoccupied key for additive extensions.

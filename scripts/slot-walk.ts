@@ -34,6 +34,8 @@ export interface SlotDeclaration {
   keyProps?: string
   /** Source text of the `hookContext` member, absent otherwise. */
   hookContext?: string
+  /** Type name of the `registration` member (per-registration metadata), absent otherwise. */
+  registration?: string
   /** Type name of the slot-level inject face, absent when the slot declares none. */
   injectType?: string
   /** The member's JSDoc with container indentation removed, '' when undocumented. */
@@ -165,6 +167,7 @@ export function slotDeclarations(file: ScannedFile): SlotDeclaration[] {
         const ownerType = memberTypeText(entry, 'owner', file.sf)
         const keyProps = memberTypeText(entry, 'keyProps', file.sf)
         const hookContext = memberTypeText(entry, 'hookContext', file.sf)
+        const registration = memberTypeText(entry, 'registration', file.sf)
         const injectType = memberTypeText(entry, 'inject', file.sf)
         out.push({
           key,
@@ -173,6 +176,7 @@ export function slotDeclarations(file: ScannedFile): SlotDeclaration[] {
           ...ownerType === undefined ? {} : { ownerType },
           ...keyProps === undefined ? {} : { keyProps },
           ...hookContext === undefined ? {} : { hookContext },
+          ...registration === undefined ? {} : { registration },
           ...injectType === undefined ? {} : { injectType },
           jsDoc: jsDocOf(member, file.sf),
           package: file.package,
